@@ -1,0 +1,11 @@
+POST http://localhost:7777/register-serial
+
+{
+  "username": "testuser01",
+  "serial_key": "MALIN-VIP-001"
+}
+
+{
+    "message": "ลงทะเบียนสำเร็จ",
+    "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJlbWFpbCI6InRlc3R1c2VyMDFAZ2FyYmFnZWNvbGxlY3Rpb24uaW5mbyIsImV4cCI6MTc5Mjg5NDg1OCwidXNlcl9pZCI6NywidXNlcm5hbWUiOiJ0ZXN0dXNlcjAxIn0.RhhfxTL_C8jGoib3MrDarSUMOSHsiwiMwdejaHjGGWM"
+}
