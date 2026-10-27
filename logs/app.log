@@ -1,0 +1,20 @@
+{"level":"info","ts":1793091872.479201,"caller":"config/config.go:57","msg":"กำลังเชื่อมต่อ Supabase","key_type":"Service Role Key (Bypass RLS)"}
+{"level":"info","ts":1793091872.483352,"caller":"config/config.go:63","msg":"Connected to Supabase successfully!"}
+{"level":"info","ts":1793091872.4839969,"caller":"server/main.go:20","msg":"กำลังเริ่มต้นระบบและเชื่อมต่อ Dependency Injection"}
+{"level":"info","ts":1793091872.4844134,"caller":"server/main.go:34","msg":"Server is running","port":"7777"}
+{"level":"info","ts":1793092241.8131323,"caller":"config/config.go:57","msg":"กำลังเชื่อมต่อ Supabase","key_type":"Service Role Key (Bypass RLS)"}
+{"level":"info","ts":1793092241.8172107,"caller":"config/config.go:63","msg":"Connected to Supabase successfully!"}
+{"level":"info","ts":1793092241.818023,"caller":"server/main.go:20","msg":"กำลังเริ่มต้นระบบและเชื่อมต่อ Dependency Injection"}
+{"level":"info","ts":1793092241.8185294,"caller":"server/main.go:34","msg":"Server is running","port":"7777"}
+{"level":"info","ts":1793092333.300071,"caller":"config/config.go:57","msg":"กำลังเชื่อมต่อ Supabase","key_type":"Service Role Key (Bypass RLS)"}
+{"level":"info","ts":1793092333.3041239,"caller":"config/config.go:63","msg":"Connected to Supabase successfully!"}
+{"level":"info","ts":1793092333.3050559,"caller":"server/main.go:20","msg":"กำลังเริ่มต้นระบบและเชื่อมต่อ Dependency Injection"}
+{"level":"info","ts":1793092333.3055866,"caller":"server/main.go:34","msg":"Server is running","port":"7777"}
+{"level":"info","ts":1793094717.784167,"caller":"config/config.go:57","msg":"กำลังเชื่อมต่อ Supabase","key_type":"Service Role Key (Bypass RLS)"}
+{"level":"info","ts":1793094717.789195,"caller":"config/config.go:63","msg":"Connected to Supabase successfully!"}
+{"level":"info","ts":1793094717.7899256,"caller":"server/main.go:20","msg":"กำลังเริ่มต้นระบบและเชื่อมต่อ Dependency Injection"}
+{"level":"info","ts":1793094717.7903783,"caller":"server/main.go:34","msg":"Server is running","port":"7777"}
+{"level":"info","ts":1793095746.818313,"caller":"config/config.go:58","msg":"กำลังเชื่อมต่อ Supabase","key_type":"Service Role Key (Bypass RLS)"}
+{"level":"info","ts":1793095746.8222482,"caller":"config/config.go:64","msg":"Connected to Supabase successfully!"}
+{"level":"info","ts":1793095746.8230143,"caller":"server/main.go:20","msg":"กำลังเริ่มต้นระบบและเชื่อมต่อ Dependency Injection"}
+{"level":"info","ts":1793095746.8234987,"caller":"server/main.go:36","msg":"Server is running","port":"7777"}

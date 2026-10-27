@@ -1,105 +1,68 @@
 package service
 
 import (
-	"encoding/json"
-	"errors"
 	"fmt"
 	"time"
 
-	"horaveda-app/internal/model"
+	"horaveda-app/internal/repository"
+	"horaveda-app/pkg/response"
 
 	"github.com/golang-jwt/jwt/v5"
-	"github.com/supabase-community/gotrue-go/types"
-	"github.com/supabase-community/supabase-go"
 	"go.uber.org/zap"
 )
 
 type AuthService struct {
-	Client    *supabase.Client
+	Repo      repository.AuthRepository
 	Logger    *zap.SugaredLogger
 	JWTSecret []byte
 }
 
-func NewAuthService(client *supabase.Client, logger *zap.SugaredLogger, jwtSecret []byte) *AuthService {
+func NewAuthService(repo repository.AuthRepository, log *zap.SugaredLogger, jwtSecret []byte) *AuthService {
 	return &AuthService{
-		Client:    client,
-		Logger:    logger,
+		Repo:      repo,
+		Logger:    log,
 		JWTSecret: jwtSecret,
 	}
 }
 
 func (s *AuthService) RegisterWithSerial(username, serialKey string) (string, error) {
-	// 1. ค้นหา Serial Key
 	s.Logger.Infow("กำลังค้นหา Serial Key ในฐานข้อมูล", "input_serial", serialKey)
-	var keys []model.SerialKey
-	data, _, err := s.Client.From("serial_keys").Select("*", "exact", false).Eq("key_code", serialKey).Execute()
+
+	// 1. ค้นหา Serial Key ผ่าน Repository
+	keyData, err := s.Repo.FindSerialKey(serialKey)
 	if err != nil {
-		s.Logger.Errorw("Database query error (serial_keys)", "error", err)
-		return "", errors.New("server error")
+		return "", response.NewNotFoundError("ไม่พบรหัสซีเรียลนี้ในระบบ", err)
 	}
 
-	json.Unmarshal(data, &keys)
-	if len(keys) == 0 {
-		return "", errors.New("รหัสซีเรียลไม่ถูกต้อง")
-	}
-
-	keyData := keys[0]
 	if keyData.IsUsed {
-		return "", errors.New("รหัสซีเรียลนี้ถูกใช้งานไปแล้ว")
+		return "", response.NewBadRequestError("รหัสซีเรียลนี้ถูกใช้งานไปแล้ว", nil)
 	}
 
-	// 2. สร้าง User ในตาราง public.users ปกติ
-	var createdUsers []model.User
-	userData, _, err := s.Client.From("users").Insert(map[string]interface{}{
-		"username": username,
-	}, false, "", "", "").Execute()
-
+	// 2. สร้าง User ในตาราง public.users
+	user, err := s.Repo.CreateUser(username)
 	if err != nil {
-		s.Logger.Errorw("Failed to insert user", "username", username, "error", err)
-		return "", errors.New("ชื่อผู้ใช้นี้ถูกใช้งานแล้ว กรุณาใช้ชื่ออื่น")
+		return "", response.NewBadRequestError("ชื่อผู้ใช้นี้ถูกใช้งานแล้ว กรุณาใช้ชื่ออื่น", err)
 	}
 
-	json.Unmarshal(userData, &createdUsers)
-	if len(createdUsers) == 0 {
-		return "", errors.New("ไม่สามารถสร้างบัญชีผู้ใช้ได้")
-	}
-
-	userID := createdUsers[0].ID
-
-	// 3. สั่งสร้าง User ใน Supabase Auth (auth.users) ผ่าน Admin API
+	// 3. สร้าง User ใน Supabase Auth (auth.users)
 	email := username + "@garbagecollection.info"
-	pwd := serialKey
-	emailConfirm := true
-
-	_, err = s.Client.Auth.AdminCreateUser(types.AdminCreateUserRequest{
-		Email:        email,
-		Password:     &pwd,
-		EmailConfirm: emailConfirm,
-		UserMetadata: map[string]interface{}{
-			"username": username,
-		},
-	})
-
+	err = s.Repo.CreateSupabaseAuthUser(email, serialKey, username)
 	if err != nil {
-		s.Logger.Errorw("Failed to create auth user in Supabase", "email", email, "error", err)
-		return "", errors.New("ไม่สามารถสร้าง Auth User ได้: " + err.Error())
+		s.Logger.Errorw("Failed to create Supabase auth user", "error", err)
+		return "", response.NewInternalServerError("ไม่สามารถสร้างบัญชีผู้ใช้ได้", err)
 	}
 	s.Logger.Infow("สร้าง Auth User ใน Supabase สำเร็จ", "email", email)
 
-	// 4. อัปเดตสถานะ Serial Key ว่าถูกใช้งานแล้วและผูก user_id
-	_, _, err = s.Client.From("serial_keys").Update(map[string]interface{}{
-		"is_used": true,
-		"user_id": userID,
-	}, "", "").Eq("id", fmt.Sprintf("%d", keyData.ID)).Execute()
-
+	// 4. อัปเดตสถานะ Serial Key ว่าถูกใช้งานแล้ว
+	err = s.Repo.UpdateSerialKeyStatus(keyData.ID, user.ID)
 	if err != nil {
-		s.Logger.Errorw("Failed to update serial key status", "key_id", keyData.ID, "error", err)
-		return "", errors.New("เกิดข้อผิดพลาดในการอัปเดตสถานะคีย์")
+		s.Logger.Errorw("Failed to update serial key status", "error", err)
+		return "", response.NewInternalServerError("เกิดข้อผิดพลาดในการอัปเดตสถานะคีย์", err)
 	}
 
-	// 5. สร้าง JWT Token ของระบบเราเอง
+	// 5. สร้าง JWT Token
 	claims := jwt.MapClaims{
-		"user_id":  userID,
+		"user_id":  user.ID,
 		"username": username,
 		"email":    email,
 		"exp":      time.Now().Add(time.Hour * 24).Unix(),
@@ -109,28 +72,22 @@ func (s *AuthService) RegisterWithSerial(username, serialKey string) (string, er
 	tokenString, err := token.SignedString(s.JWTSecret)
 	if err != nil {
 		s.Logger.Errorw("Failed to sign JWT token", "error", err)
-		return "", errors.New("ไม่สามารถสร้าง Token ได้")
+		return "", response.NewInternalServerError("ไม่สามารถสร้าง Token ได้", err)
 	}
 
 	return tokenString, nil
 }
 
 func (s *AuthService) GetAllKeys() ([]map[string]interface{}, error) {
-	data, _, err := s.Client.From("serial_keys").Select("*", "exact", false).Execute()
+	keys, err := s.Repo.GetAllSerialKeys()
 	if err != nil {
-		return nil, err
+		return nil, response.NewInternalServerError("ไม่สามารถดึงข้อมูลคีย์ทั้งหมดได้", err)
 	}
-
-	var keys []map[string]interface{}
-	json.Unmarshal(data, &keys)
 	return keys, nil
 }
 
-// VerifyToken ทำหน้าที่ตรวจสอบความถูกต้องของ JWT Token และคืนค่า claims ออกมา
 func (s *AuthService) VerifyToken(tokenString string) (jwt.MapClaims, error) {
-	// 1. Parse และตรวจสอบ Token โดยใช้ JWTSecret ที่ตั้งไว้
 	token, err := jwt.Parse(tokenString, func(token *jwt.Token) (interface{}, error) {
-		// ตรวจสอบ Signing Method ว่าถูกต้องตามที่ใช้เซ็น (HS256) หรือไม่
 		if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
 			return nil, fmt.Errorf("unexpected signing method: %v", token.Header["alg"])
 		}
@@ -138,13 +95,12 @@ func (s *AuthService) VerifyToken(tokenString string) (jwt.MapClaims, error) {
 	})
 
 	if err != nil {
-		return nil, err
+		return nil, response.NewUnauthorizedError("Invalid token", err)
 	}
 
-	// 2. ตรวจสอบว่า Token สมบูรณ์และใช้งานได้จริงหรือไม่ พร้อมแปลงเป็น MapClaims
 	if claims, ok := token.Claims.(jwt.MapClaims); ok && token.Valid {
 		return claims, nil
 	}
 
-	return nil, errors.New("invalid token")
+	return nil, response.NewUnauthorizedError("Invalid token", nil)
 }

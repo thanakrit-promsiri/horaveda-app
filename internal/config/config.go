@@ -15,6 +15,7 @@ type Config struct {
 	Logger         *zap.SugaredLogger
 	Port           string
 	JWTSecret      []byte
+	CORSOrigin     string // <-- เพิ่มฟิลด์นี้เข้าไป
 }
 
 func LoadConfig() *Config {
@@ -67,10 +68,17 @@ func LoadConfig() *Config {
 		port = "8080"
 	}
 
+	// ดึงค่า CORS_ORIGIN จาก .env (ถ้าไม่มีใช้ค่า default เป็นโดเมนของคุณ)
+	corsOrigin := os.Getenv("CORS_ORIGIN")
+	if corsOrigin == "" {
+		corsOrigin = "https://hora.garbagecollection.info"
+	}
+
 	return &Config{
 		SupabaseClient: client,
 		Logger:         sugar,
 		Port:           port,
 		JWTSecret:      []byte("YOUR_SUPER_SECRET_KEY_CHANGE_THIS"),
+		CORSOrigin:     corsOrigin, // <-- กำหนดค่าที่นี่
 	}
 }
