@@ -3,22 +3,16 @@ package handler
 import (
 	"encoding/json"
 	"net/http"
+	"regexp"
 	"time"
 
 	"horaveda-app/internal/domain"
 	"horaveda-app/pkg/response"
 )
 
+var usernameRegex = regexp.MustCompile(`^[a-zA-Z0-9]+$`)
+
 func (h *AuthHandler) HandleSerialRegister(w http.ResponseWriter, r *http.Request) {
-	w.Header().Set("Access-Control-Allow-Origin", "https://hora.garbagecollection.info")
-	w.Header().Set("Access-Control-Allow-Credentials", "true")
-	w.Header().Set("Access-Control-Allow-Headers", "Content-Type, Authorization")
-
-	if r.Method == "OPTIONS" {
-		w.WriteHeader(http.StatusOK)
-		return
-	}
-
 	if r.Method != "POST" {
 		h.Logger.Warnw("Method not allowed", "method", r.Method, "remote_addr", r.RemoteAddr)
 		response.Error(w, http.StatusMethodNotAllowed, "Method not allowed")
@@ -27,9 +21,9 @@ func (h *AuthHandler) HandleSerialRegister(w http.ResponseWriter, r *http.Reques
 
 	var req domain.RegisterRequest
 	err := json.NewDecoder(r.Body).Decode(&req)
-	if err != nil || req.Username == "" || req.SerialKey == "" {
+	if err != nil || req.Username == "" || req.SerialKey == "" || !usernameRegex.MatchString(req.Username) {
 		h.Logger.Warnw("Invalid registration request payload", "error", err, "username", req.Username)
-		response.Error(w, http.StatusBadRequest, "กรุณากรอกข้อมูลให้ครบถ้วน")
+		response.Error(w, http.StatusBadRequest, "Username ต้องเป็นอักษรโรมันและตัวเลขเท่านั้น และกรอกข้อมูลให้ครบถ้วน")
 		return
 	}
 

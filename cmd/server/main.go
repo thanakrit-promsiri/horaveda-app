@@ -22,8 +22,8 @@ func main() {
 	// สร้าง Repository และ Service ตามลำดับ (Dependency Injection)
 	authRepo := repository.NewAuthRepository(cfg.SupabaseClient, cfg.Logger)
 	authService := service.NewAuthService(authRepo, cfg.Logger, cfg.JWTSecret)
-	
-	// แก้ไข: ส่ง cfg เข้าไปใน NewAuthHandler ครบถ้วนตามพารามิเตอร์ใหม่
+
+	// ส่ง cfg เข้าไปใน NewAuthHandler เพื่อให้ Handler เข้าถึงค่า Config ได้
 	authHandler := handler.NewAuthHandler(authService, cfg.Logger, cfg)
 
 	// สร้าง Instance ของ Auth Middleware พร้อมส่ง cfg.Logger เข้าไป
@@ -32,11 +32,14 @@ func main() {
 	// เรียกใช้งาน Router โดยส่ง authHandler, authMiddleware และ cfg.Logger เข้าไป
 	mux := httpdelivery.NewRouter(authHandler, authMiddleware, cfg.Logger)
 
+	// นำ Global CORS Middleware มาครอบ Mux Router โดยดึงค่า Origin จาก config
+	corsHandler := middleware.CORSMiddleware(cfg.CORSOrigin)(mux)
+
 	// บันทึก Log แจ้งสถานะพอร์ตที่เซิร์ฟเวอร์กำลังจะรัน
 	cfg.Logger.Infow("Server is running", "port", cfg.Port)
 
-	// รัน HTTP Server และดักจับ Error กรณีที่ Server ล่มหรือเกิดข้อผิดพลาด
-	if err := http.ListenAndServe(":"+cfg.Port, mux); err != nil {
+	// รัน HTTP Server (ผ่าน corsHandler) และดักจับ Error กรณีที่ Server ล่มหรือเกิดข้อผิดพลาด
+	if err := http.ListenAndServe(":"+cfg.Port, corsHandler); err != nil {
 		cfg.Logger.Errorw("Server terminated with error", "error", err)
 		cfg.Logger.Fatal(err)
 	}

@@ -7,14 +7,6 @@ import (
 )
 
 func (h *AuthHandler) HandleVerifyAuth(w http.ResponseWriter, r *http.Request) {
-	w.Header().Set("Access-Control-Allow-Origin", h.Cfg.CORSOrigin)
-	w.Header().Set("Access-Control-Allow-Credentials", "true")
-
-	if r.Method == "OPTIONS" {
-		w.WriteHeader(http.StatusOK)
-		return
-	}
-
 	// ดึงข้อมูล claims ที่แนบมาจาก Auth Middleware ผ่าน Context
 	claims, ok := r.Context().Value("userClaims").(map[string]interface{})
 	var username string

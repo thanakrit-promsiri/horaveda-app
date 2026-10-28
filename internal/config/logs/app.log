@@ -1,0 +1,20 @@
+{"level":"info","ts":1793209308.0784583,"caller":"config/config.go:58","msg":"กำลังเชื่อมต่อ Supabase","key_type":"Service Role Key (Bypass RLS)"}
+{"level":"info","ts":1793209308.0805795,"caller":"config/config.go:64","msg":"Connected to Supabase successfully!"}
+{"level":"info","ts":1793209308.0817578,"caller":"config/config.go:58","msg":"กำลังเชื่อมต่อ Supabase","key_type":"Publishable/Anon Key"}
+{"level":"info","ts":1793209308.0827074,"caller":"config/config.go:64","msg":"Connected to Supabase successfully!"}
+{"level":"info","ts":1793209352.3795826,"caller":"config/config.go:58","msg":"กำลังเชื่อมต่อ Supabase","key_type":"Service Role Key (Bypass RLS)"}
+{"level":"info","ts":1793209352.3808134,"caller":"config/config.go:64","msg":"Connected to Supabase successfully!"}
+{"level":"info","ts":1793209352.3808134,"caller":"config/config.go:58","msg":"กำลังเชื่อมต่อ Supabase","key_type":"Publishable/Anon Key"}
+{"level":"info","ts":1793209352.3814862,"caller":"config/config.go:64","msg":"Connected to Supabase successfully!"}
+{"level":"info","ts":1793209426.9433875,"caller":"config/config.go:58","msg":"กำลังเชื่อมต่อ Supabase","key_type":"Service Role Key (Bypass RLS)"}
+{"level":"info","ts":1793209426.948109,"caller":"config/config.go:64","msg":"Connected to Supabase successfully!"}
+{"level":"info","ts":1793209426.9495509,"caller":"config/config.go:58","msg":"กำลังเชื่อมต่อ Supabase","key_type":"Publishable/Anon Key"}
+{"level":"info","ts":1793209426.9514482,"caller":"config/config.go:64","msg":"Connected to Supabase successfully!"}
+{"level":"info","ts":1793209429.1272368,"caller":"config/config.go:58","msg":"กำลังเชื่อมต่อ Supabase","key_type":"Service Role Key (Bypass RLS)"}
+{"level":"info","ts":1793209429.1312695,"caller":"config/config.go:64","msg":"Connected to Supabase successfully!"}
+{"level":"info","ts":1793209429.1324418,"caller":"config/config.go:58","msg":"กำลังเชื่อมต่อ Supabase","key_type":"Publishable/Anon Key"}
+{"level":"info","ts":1793209429.1343784,"caller":"config/config.go:64","msg":"Connected to Supabase successfully!"}
+{"level":"info","ts":1793209431.1069012,"caller":"config/config.go:58","msg":"กำลังเชื่อมต่อ Supabase","key_type":"Service Role Key (Bypass RLS)"}
+{"level":"info","ts":1793209431.1133966,"caller":"config/config.go:64","msg":"Connected to Supabase successfully!"}
+{"level":"info","ts":1793209431.1145678,"caller":"config/config.go:58","msg":"กำลังเชื่อมต่อ Supabase","key_type":"Publishable/Anon Key"}
+{"level":"info","ts":1793209431.1165361,"caller":"config/config.go:64","msg":"Connected to Supabase successfully!"}

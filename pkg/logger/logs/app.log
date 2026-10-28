@@ -1,0 +1,5 @@
+{"level":"info","ts":"2026-10-29T00:41:49.633+0700","caller":"logger/logger_test.go:12","msg":"test logger initialized"}
+{"level":"info","ts":"2026-10-29T00:42:34.071+0700","caller":"logger/logger_test.go:12","msg":"test logger initialized"}
+{"level":"info","ts":"2026-10-29T00:43:46.956+0700","caller":"logger/logger_test.go:12","msg":"test logger initialized"}
+{"level":"info","ts":"2026-10-29T00:43:49.329+0700","caller":"logger/logger_test.go:12","msg":"test logger initialized"}
+{"level":"info","ts":"2026-10-29T00:43:51.189+0700","caller":"logger/logger_test.go:12","msg":"test logger initialized"}
