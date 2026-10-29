@@ -5,7 +5,6 @@ go 1.26.8
 require (
 	github.com/golang-jwt/jwt/v5 v5.3.1
 	github.com/joho/godotenv v1.5.1
-	github.com/natefinch/lumberjack v2.0.0+incompatible
 	github.com/supabase-community/gotrue-go v1.2.1
 	github.com/supabase-community/supabase-go v0.0.4
 	go.uber.org/zap v1.28.0

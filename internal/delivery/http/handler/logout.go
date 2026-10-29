@@ -7,12 +7,17 @@ import (
 )
 
 func (h *AuthHandler) HandleLogout(w http.ResponseWriter, r *http.Request) {
+	secureCookie := false
+	if h.Cfg != nil {
+		secureCookie = h.Cfg.CookieSecure
+	}
+
 	cookie := http.Cookie{
 		Name:     "auth_token",
 		Value:    "",
 		Path:     "/",
 		HttpOnly: true,
-		Secure:   true,
+		Secure:   secureCookie,
 		SameSite: http.SameSiteLaxMode,
 		MaxAge:   -1,
 	}

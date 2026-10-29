@@ -9,6 +9,8 @@ func TestLoadConfig_WithServiceRoleKeyAndCustomEnv(t *testing.T) {
 	t.Setenv("NEXT_PUBLIC_SUPABASE_SERVICE_ROLE_KEY", "service-role-secret-key")
 	t.Setenv("PORT", "9090")
 	t.Setenv("CORS_ORIGIN", "http://localhost:3000")
+	t.Setenv("JWT_SECRET", "custom-jwt-secret")
+	t.Setenv("COOKIE_SECURE", "true")
 
 	cfg := LoadConfig()
 	if cfg == nil {
@@ -26,8 +28,11 @@ func TestLoadConfig_WithServiceRoleKeyAndCustomEnv(t *testing.T) {
 	if cfg.CORSOrigin != "http://localhost:3000" {
 		t.Errorf("expected CORSOrigin http://localhost:3000, got %q", cfg.CORSOrigin)
 	}
-	if len(cfg.JWTSecret) == 0 {
-		t.Error("expected non-empty JWTSecret")
+	if string(cfg.JWTSecret) != "custom-jwt-secret" {
+		t.Errorf("expected JWTSecret custom-jwt-secret, got %q", string(cfg.JWTSecret))
+	}
+	if !cfg.CookieSecure {
+		t.Error("expected CookieSecure=true")
 	}
 }
 
@@ -37,6 +42,9 @@ func TestLoadConfig_WithPublishableKeyAndDefaults(t *testing.T) {
 	t.Setenv("NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY", "anon-public-key")
 	t.Setenv("PORT", "")
 	t.Setenv("CORS_ORIGIN", "")
+	t.Setenv("JWT_SECRET", "")
+	t.Setenv("COOKIE_SECURE", "")
+	t.Setenv("APP_ENV", "")
 
 	cfg := LoadConfig()
 	if cfg == nil {
@@ -47,5 +55,8 @@ func TestLoadConfig_WithPublishableKeyAndDefaults(t *testing.T) {
 	}
 	if cfg.CORSOrigin != "https://hora.garbagecollection.info" {
 		t.Errorf("expected default CORSOrigin, got %q", cfg.CORSOrigin)
+	}
+	if cfg.CookieSecure {
+		t.Error("expected default CookieSecure=false")
 	}
 }

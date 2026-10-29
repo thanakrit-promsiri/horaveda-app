@@ -68,6 +68,19 @@ func TestFindSerialKey(t *testing.T) {
 		}
 	})
 
+	t.Run("invalid JSON response", func(t *testing.T) {
+		repo, cleanup := newMockSupabaseRepo(t, func(w http.ResponseWriter, r *http.Request) {
+			w.Header().Set("Content-Type", "application/json")
+			fmt.Fprint(w, `invalid-json`)
+		})
+		defer cleanup()
+
+		_, err := repo.FindSerialKey("MALIN-VIP-001")
+		if err == nil {
+			t.Fatal("expected error on invalid JSON")
+		}
+	})
+
 	t.Run("database error", func(t *testing.T) {
 		repo, cleanup := newMockSupabaseRepo(t, func(w http.ResponseWriter, r *http.Request) {
 			w.WriteHeader(http.StatusInternalServerError)
@@ -199,6 +212,19 @@ func TestGetAllSerialKeys(t *testing.T) {
 		}
 		if len(keys) != 2 {
 			t.Errorf("expected 2 keys, got %d", len(keys))
+		}
+	})
+
+	t.Run("invalid JSON response", func(t *testing.T) {
+		repo, cleanup := newMockSupabaseRepo(t, func(w http.ResponseWriter, r *http.Request) {
+			w.Header().Set("Content-Type", "application/json")
+			fmt.Fprint(w, `not-json`)
+		})
+		defer cleanup()
+
+		_, err := repo.GetAllSerialKeys()
+		if err == nil {
+			t.Fatal("expected error on invalid JSON")
 		}
 	})
 

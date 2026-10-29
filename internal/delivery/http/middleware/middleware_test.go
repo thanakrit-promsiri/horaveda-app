@@ -1,6 +1,7 @@
 package middleware
 
 import (
+	"context"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -59,6 +60,31 @@ func TestCORSMiddleware(t *testing.T) {
 	})
 }
 
+func TestGetUserClaims(t *testing.T) {
+	t.Run("from UserClaimsKey with jwt.MapClaims", func(t *testing.T) {
+		ctx := context.WithValue(context.Background(), UserClaimsKey, jwt.MapClaims{"username": "alice"})
+		claims, ok := GetUserClaims(ctx)
+		if !ok || claims["username"] != "alice" {
+			t.Errorf("expected alice, got %v (ok=%v)", claims, ok)
+		}
+	})
+
+	t.Run("from string key with map[string]interface{}", func(t *testing.T) {
+		ctx := context.WithValue(context.Background(), "userClaims", map[string]interface{}{"username": "bob"})
+		claims, ok := GetUserClaims(ctx)
+		if !ok || claims["username"] != "bob" {
+			t.Errorf("expected bob, got %v (ok=%v)", claims, ok)
+		}
+	})
+
+	t.Run("missing claims", func(t *testing.T) {
+		_, ok := GetUserClaims(context.Background())
+		if ok {
+			t.Error("expected ok=false for empty context")
+		}
+	})
+}
+
 func TestAuthMiddleware_RequireAuth(t *testing.T) {
 	secret := []byte("middleware-test-secret")
 	log := zap.NewNop().Sugar()
@@ -108,7 +134,7 @@ func TestAuthMiddleware_RequireAuth(t *testing.T) {
 
 		var capturedUsername string
 		handler := mw.RequireAuth(func(w http.ResponseWriter, r *http.Request) {
-			claims, ok := r.Context().Value("userClaims").(jwt.MapClaims)
+			claims, ok := GetUserClaims(r.Context())
 			if !ok {
 				t.Fatal("expected userClaims in context")
 			}

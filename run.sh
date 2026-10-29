@@ -1,1 +1,4 @@
+#!/usr/bin/env bash
+set -e
+
 go run cmd/server/main.go

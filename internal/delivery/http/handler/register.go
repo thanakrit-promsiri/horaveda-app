@@ -2,6 +2,7 @@ package handler
 
 import (
 	"encoding/json"
+	"errors"
 	"net/http"
 	"regexp"
 	"time"
@@ -32,7 +33,8 @@ func (h *AuthHandler) HandleSerialRegister(w http.ResponseWriter, r *http.Reques
 	token, err := h.AuthService.RegisterWithSerial(req.Username, req.SerialKey)
 	if err != nil {
 		// ตรวจสอบว่าเป็น AppError ที่กำหนดมาจาก Service หรือไม่
-		if appErr, ok := err.(*response.AppError); ok {
+		var appErr *response.AppError
+		if errors.As(err, &appErr) {
 			h.Logger.Warnw("Registration failed with app error", "username", req.Username, "code", appErr.Code, "message", appErr.Message)
 			response.Error(w, appErr.Code, appErr.Message)
 			return
@@ -44,12 +46,17 @@ func (h *AuthHandler) HandleSerialRegister(w http.ResponseWriter, r *http.Reques
 		return
 	}
 
+	secureCookie := false
+	if h.Cfg != nil {
+		secureCookie = h.Cfg.CookieSecure
+	}
+
 	cookie := http.Cookie{
 		Name:     "auth_token",
 		Value:    token,
 		Path:     "/",
 		HttpOnly: true,
-		Secure:   false,
+		Secure:   secureCookie,
 		SameSite: http.SameSiteLaxMode,
 		Expires:  time.Now().Add(24 * time.Hour),
 	}

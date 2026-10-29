@@ -3,12 +3,13 @@ package handler
 import (
 	"net/http"
 
+	"horaveda-app/internal/delivery/http/middleware"
 	"horaveda-app/pkg/response"
 )
 
 func (h *AuthHandler) HandleVerifyAuth(w http.ResponseWriter, r *http.Request) {
 	// ดึงข้อมูล claims ที่แนบมาจาก Auth Middleware ผ่าน Context
-	claims, ok := r.Context().Value("userClaims").(map[string]interface{})
+	claims, ok := middleware.GetUserClaims(r.Context())
 	var username string
 	if ok {
 		if u, exists := claims["username"].(string); exists {

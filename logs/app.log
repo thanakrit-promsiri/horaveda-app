@@ -185,3 +185,8 @@
 {"level":"info","ts":1793209517.1166894,"caller":"config/config.go:64","msg":"Connected to Supabase successfully!"}
 {"level":"info","ts":1793209517.1176662,"caller":"server/main.go:20","msg":"กำลังเริ่มต้นระบบและเชื่อมต่อ Dependency Injection"}
 {"level":"info","ts":1793209517.1183724,"caller":"server/main.go:39","msg":"Server is running","port":"8082"}
+{"level":"info","ts":"2026-10-29T10:28:30.784+0700","caller":"config/config.go:42","msg":"กำลังเชื่อมต่อ Supabase","key_type":"Service Role Key (Bypass RLS)"}
+{"level":"info","ts":"2026-10-29T10:28:30.789+0700","caller":"config/config.go:48","msg":"Connected to Supabase successfully!"}
+{"level":"warn","ts":"2026-10-29T10:28:30.790+0700","caller":"config/config.go:64","msg":"ไม่ได้กำหนดค่า JWT_SECRET ใน .env ระบบจะใช้ค่าเริ่มต้นชั่วคราว (ไม่แนะนำสำหรับ Production)"}
+{"level":"info","ts":"2026-10-29T10:28:30.791+0700","caller":"server/main.go:26","msg":"กำลังเริ่มต้นระบบและเชื่อมต่อ Dependency Injection"}
+{"level":"info","ts":"2026-10-29T10:28:30.792+0700","caller":"server/main.go:59","msg":"Server is running","port":"8082"}

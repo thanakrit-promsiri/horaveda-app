@@ -3,3 +3,7 @@
 {"level":"info","ts":"2026-10-29T00:43:46.956+0700","caller":"logger/logger_test.go:12","msg":"test logger initialized"}
 {"level":"info","ts":"2026-10-29T00:43:49.329+0700","caller":"logger/logger_test.go:12","msg":"test logger initialized"}
 {"level":"info","ts":"2026-10-29T00:43:51.189+0700","caller":"logger/logger_test.go:12","msg":"test logger initialized"}
+{"level":"info","ts":"2026-10-29T10:22:30.499+0700","caller":"logger/logger_test.go:12","msg":"test logger initialized"}
+{"level":"info","ts":"2026-10-29T10:25:50.518+0700","caller":"logger/logger_test.go:12","msg":"test logger initialized"}
+{"level":"info","ts":"2026-10-29T10:25:52.703+0700","caller":"logger/logger_test.go:12","msg":"test logger initialized"}
+{"level":"info","ts":"2026-10-29T10:25:54.672+0700","caller":"logger/logger_test.go:12","msg":"test logger initialized"}

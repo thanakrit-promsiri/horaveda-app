@@ -37,7 +37,10 @@ func (r *authRepository) FindSerialKey(serialKey string) (*domain.SerialKey, err
 		return nil, err
 	}
 
-	json.Unmarshal(data, &keys)
+	if err := json.Unmarshal(data, &keys); err != nil {
+		r.logger.Errorw("Failed to parse serial keys data", "error", err)
+		return nil, errors.New("เกิดข้อผิดพลาดในการแปลงข้อมูลรหัสซีเรียล")
+	}
 	if len(keys) == 0 {
 		r.logger.Warnw("Serial key not found", "key_code", serialKey)
 		return nil, errors.New("รหัสซีเรียลไม่ถูกต้อง")
@@ -58,9 +61,8 @@ func (r *authRepository) CreateUser(username string) (*domain.User, error) {
 		return nil, errors.New("ชื่อผู้ใช้นี้ถูกใช้งานแล้ว กรุณาใช้ชื่ออื่น")
 	}
 
-	json.Unmarshal(userData, &createdUsers)
-	if len(createdUsers) == 0 {
-		r.logger.Errorw("Failed to parse created user data", "username", username)
+	if err := json.Unmarshal(userData, &createdUsers); err != nil || len(createdUsers) == 0 {
+		r.logger.Errorw("Failed to parse created user data", "username", username, "error", err)
 		return nil, errors.New("ไม่สามารถสร้างบัญชีผู้ใช้ได้")
 	}
 
@@ -110,8 +112,11 @@ func (r *authRepository) GetAllSerialKeys() ([]map[string]interface{}, error) {
 	}
 
 	var keys []map[string]interface{}
-	json.Unmarshal(data, &keys)
-	
+	if err := json.Unmarshal(data, &keys); err != nil {
+		r.logger.Errorw("Failed to parse serial keys list", "error", err)
+		return nil, err
+	}
+
 	r.logger.Infow("Successfully fetched all serial keys", "count", len(keys))
 	return keys, nil
 }
