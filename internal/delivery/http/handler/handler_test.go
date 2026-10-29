@@ -18,7 +18,7 @@ import (
 type stubAuthRepo struct {
 	findSerialKeyFn          func(serialKey string) (*domain.SerialKey, error)
 	createUserFn             func(username string) (*domain.User, error)
-	createSupabaseAuthUserFn func(email, password, username string) error
+	createSupabaseAuthUserFn func(email, password, username string) (string, error)
 	updateSerialKeyStatusFn  func(keyID int, userID int) error
 	getAllSerialKeysFn       func() ([]map[string]interface{}, error)
 }
@@ -29,11 +29,20 @@ func (s *stubAuthRepo) FindSerialKey(serialKey string) (*domain.SerialKey, error
 func (s *stubAuthRepo) CreateUser(username string) (*domain.User, error) {
 	return s.createUserFn(username)
 }
-func (s *stubAuthRepo) CreateSupabaseAuthUser(email, password, username string) error {
+func (s *stubAuthRepo) DeleteUser(userID int) error {
+	return nil
+}
+func (s *stubAuthRepo) CreateSupabaseAuthUser(email, password, username string) (string, error) {
 	return s.createSupabaseAuthUserFn(email, password, username)
+}
+func (s *stubAuthRepo) DeleteSupabaseAuthUser(authUserID string) error {
+	return nil
 }
 func (s *stubAuthRepo) UpdateSerialKeyStatus(keyID int, userID int) error {
 	return s.updateSerialKeyStatusFn(keyID, userID)
+}
+func (s *stubAuthRepo) RollbackSerialKeyStatus(keyID int) error {
+	return nil
 }
 func (s *stubAuthRepo) GetAllSerialKeys() ([]map[string]interface{}, error) {
 	return s.getAllSerialKeysFn()
@@ -115,8 +124,8 @@ func TestHandleSerialRegister(t *testing.T) {
 			createUserFn: func(username string) (*domain.User, error) {
 				return &domain.User{ID: 7, Username: username}, nil
 			},
-			createSupabaseAuthUserFn: func(email, password, username string) error {
-				return nil
+			createSupabaseAuthUserFn: func(email, password, username string) (string, error) {
+				return "00000000-0000-0000-0000-000000000001", nil
 			},
 			updateSerialKeyStatusFn: func(keyID int, userID int) error {
 				return nil

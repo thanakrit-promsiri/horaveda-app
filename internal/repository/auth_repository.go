@@ -7,6 +7,7 @@ import (
 
 	"horaveda-app/internal/domain"
 
+	"github.com/google/uuid"
 	"github.com/supabase-community/gotrue-go/types"
 	"github.com/supabase-community/supabase-go"
 	"go.uber.org/zap"
@@ -15,8 +16,11 @@ import (
 type AuthRepository interface {
 	FindSerialKey(serialKey string) (*domain.SerialKey, error)
 	CreateUser(username string) (*domain.User, error)
-	CreateSupabaseAuthUser(email, password, username string) error
+	DeleteUser(userID int) error
+	CreateSupabaseAuthUser(email, password, username string) (string, error)
+	DeleteSupabaseAuthUser(authUserID string) error
 	UpdateSerialKeyStatus(keyID int, userID int) error
+	RollbackSerialKeyStatus(keyID int) error
 	GetAllSerialKeys() ([]map[string]interface{}, error)
 }
 
@@ -70,9 +74,21 @@ func (r *authRepository) CreateUser(username string) (*domain.User, error) {
 	return &createdUsers[0], nil
 }
 
-func (r *authRepository) CreateSupabaseAuthUser(email, password, username string) error {
+// DeleteUser ลบข้อมูลผู้ใช้จากตาราง public.users (ใช้สำหรับทำ Rollback กรณีขั้นตอนถัดไปล้มเหลว)
+func (r *authRepository) DeleteUser(userID int) error {
+	_, _, err := r.client.From("users").Delete("", "").Eq("id", fmt.Sprintf("%d", userID)).Execute()
+	if err != nil {
+		r.logger.Errorw("Failed to rollback (delete) user from database", "user_id", userID, "error", err)
+		return errors.New("ไม่สามารถลบข้อมูลผู้ใช้เพื่อทำการ Rollback ได้")
+	}
+
+	r.logger.Infow("Successfully rolled back (deleted) user from database", "user_id", userID)
+	return nil
+}
+
+func (r *authRepository) CreateSupabaseAuthUser(email, password, username string) (string, error) {
 	emailConfirm := true
-	_, err := r.client.Auth.AdminCreateUser(types.AdminCreateUserRequest{
+	resp, err := r.client.Auth.AdminCreateUser(types.AdminCreateUserRequest{
 		Email:        email,
 		Password:     &password,
 		EmailConfirm: emailConfirm,
@@ -82,10 +98,32 @@ func (r *authRepository) CreateSupabaseAuthUser(email, password, username string
 	})
 	if err != nil {
 		r.logger.Errorw("Failed to create auth user in Supabase", "email", email, "error", err)
-		return errors.New("ไม่สามารถสร้าง Auth User ได้: " + err.Error())
+		return "", errors.New("ไม่สามารถสร้าง Auth User ได้: " + err.Error())
 	}
 
-	r.logger.Infow("Successfully created Supabase auth user", "email", email)
+	authUserID := ""
+	if resp != nil {
+		authUserID = resp.ID.String()
+	}
+
+	r.logger.Infow("Successfully created Supabase auth user", "email", email, "auth_user_id", authUserID)
+	return authUserID, nil
+}
+
+// DeleteSupabaseAuthUser ลบบัญชีผู้ใช้จากระบบ Supabase Auth (ใช้สำหรับทำ Rollback)
+func (r *authRepository) DeleteSupabaseAuthUser(authUserID string) error {
+	parsedUUID, err := uuid.Parse(authUserID)
+	if err != nil {
+		r.logger.Errorw("Invalid auth user UUID for rollback", "auth_user_id", authUserID, "error", err)
+		return errors.New("รหัส Auth User ID ไม่ถูกต้องสำหรับการทำ Rollback")
+	}
+
+	if err := r.client.Auth.AdminDeleteUser(types.AdminDeleteUserRequest{UserID: parsedUUID}); err != nil {
+		r.logger.Errorw("Failed to rollback (delete) Supabase auth user", "auth_user_id", authUserID, "error", err)
+		return errors.New("ไม่สามารถลบ Auth User เพื่อทำการ Rollback ได้")
+	}
+
+	r.logger.Infow("Successfully rolled back (deleted) Supabase auth user", "auth_user_id", authUserID)
 	return nil
 }
 
@@ -101,6 +139,22 @@ func (r *authRepository) UpdateSerialKeyStatus(keyID int, userID int) error {
 	}
 
 	r.logger.Infow("Successfully updated serial key status to used", "key_id", keyID, "user_id", userID)
+	return nil
+}
+
+// RollbackSerialKeyStatus คืนค่าสถานะของ Serial Key กลับเป็นยังไม่ถูกใช้งาน (ใช้สำหรับทำ Rollback)
+func (r *authRepository) RollbackSerialKeyStatus(keyID int) error {
+	_, _, err := r.client.From("serial_keys").Update(map[string]interface{}{
+		"is_used": false,
+		"user_id": nil,
+	}, "", "").Eq("id", fmt.Sprintf("%d", keyID)).Execute()
+
+	if err != nil {
+		r.logger.Errorw("Failed to rollback serial key status", "key_id", keyID, "error", err)
+		return errors.New("ไม่สามารถคืนค่าสถานะรหัสซีเรียลเพื่อทำการ Rollback ได้")
+	}
+
+	r.logger.Infow("Successfully rolled back serial key status", "key_id", keyID)
 	return nil
 }
 

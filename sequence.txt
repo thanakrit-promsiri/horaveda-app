@@ -1,123 +1,155 @@
-โครงสร้างโปรเจกต์ horaveda-app นี้ถูกจัดระเบียบตามมาตรฐาน Clean Architecture ในภาษา Go โดยแบ่งหน้าที่การทำงานของแต่ละส่วนดังนี้ครับ:LICENSE: ไฟล์ระบุเงื่อนไขและลิขสิทธิ์การใช้งานโปรเจกต์build.sh / run.sh / test.sh: สคริปต์สำหรับช่วยในการ Build, รันเซิร์ฟเวอร์ และรันการทดสอบระบบอัตโนมัติcmd/server/main.go: จุดเริ่มต้นหลักของแอปพลิเคชัน (Entry point) ทำหน้าที่โหลดคอนฟิก, เชื่อมโยง Dependency Injection และเริ่มรัน HTTP Server   coverage.html / coverage.out: ไฟล์รายงานผลและสถิติความครอบคลุมของการทดสอบโค้ด (Test Coverage)go.mod / go.sum: จัดการแพ็กเกจและ Dependencies ภายนอกของภาษา Gohoraveda.postman_collection.json: ชุดคำขอสำหรับทดสอบ API ผ่านโปรแกรม Postmaninternal/config/config.go: จัดการโหลดค่าคอนฟิกและตัวแปรแวดล้อมต่างๆ ของระบบinternal/delivery/http/: ชั้นติดต่อสื่อสารผ่าน HTTP Protocolhandler/: จัดการรับ Request และส่ง Response กลับหาผู้ใช้งาน (ประกอบด้วย auth_handler.go, debug.go, logout.go, register.go, และ verify.go)   middleware/auth_middleware.go: ตัวกรองคำขอเพื่อตรวจสอบสิทธิ์ความปลอดภัย (Authentication/Token Validation) ก่อนเข้าถึง Handler   router.go: ลงทะเบียนเส้นทาง (Routes) ทั้งหมดของ API พร้อมระบบบันทึก Log คำขอ   internal/domain/model.go: โครงสร้างข้อมูลกลาง (Data Models และ Structs) ที่ใช้ร่วมกันทั้งแอปพลิเคชัน   internal/repository/auth_repository.go: ชั้นติดต่อฐานข้อมูล (Database/Supabase) สำหรับดึงและบันทึกข้อมูลที่เกี่ยวข้องกับการยืนยันตัวตน   internal/service/auth_service.go: ชั้นประมวลผลธุรกิจ (Business Logic) เช่น การจัดการระบบสมาชิกและการตรวจสอบรหัสซีเรียลlogs/app.log: ไดเรกทอรีสำหรับเก็บไฟล์บันทึกการทำงานของระบบ (Log files)migrations/: โฟลเดอร์สำหรับจัดการโครงสร้างและชุดคำสั่งอัปเดตฐานข้อมูล (Database Migrations)pkg/: แพ็กเกจกลางที่สามารถนำไปใช้ซ้ำได้ทั่วโปรเจกต์logger/logger.go: ตั้งค่าและสร้างเครื่องมือบันทึก Log ส่วนกลางด้วย Zap และระบบหมุนเวียนไฟล์ Log (Rotation)response/: เครื่องมือมาตรฐานสำหรับจัดรูปแบบการส่งข้อมูล Response และจัดการข้อผิดพลาด (Errors)   req/req.txt: บันทึกรายการคำขอหรือข้อมูลตัวอย่างประกอบการพัฒนาsequence.txt: แผนผังลำดับการทำงาน (Sequence Diagram) ของระบบ
+# คัดลอกโค้ดตั้งแต่บรรทัด "sequenceDiagram" ด้านล่างนี้ไปวางใน https://mermaid.live/ ได้ทันที
 
-
-#https://mermaid.live/
 sequenceDiagram
     autonumber
-    actor User as ผู้ใช้งาน
-    participant Nginx as Nginx Reverse Proxy
-    participant Web as ssr-web (Frontend)
-    participant API as horaveda-app (Backend)
-    participant DB as Supabase (PostgreSQL)
-    participant Lahiri as lahiri-api
-    participant GoSwisseph as go-swisseph (Go Wrapper)
-    participant CSwisseph as swisseph (C/C++ Core & Ephe Files)
-    participant LLM as One API / LLM
-    
-    User->>Nginx: ขอเข้าใช้งานเว็บ / ส่งฟอร์มผูกดวง
-    Nginx->>Web: โหลดหน้าเว็บ (SSR)
-    
-    Note over User,Web: ผู้ใช้งาน Login สำเร็จ -> Backend เซ็ต Token ลง Cookie
-    
-    Web->>Nginx: ส่ง HTTP Request (แนบ Cookie / Token มาด้วยอัตโนมัติ)
-    Nginx->>API: ส่งต่อ Request พร้อม Cookie ไปยัง Backend (horaveda-app)
-    
-    %% Go Backend ดึง Token จาก Cookie มาเช็กสิทธิ์
-    API->>API: ดึงและตรวจสอบ Token จาก Cookie
-    API->>DB: ตรวจสอบข้อมูลผู้ใช้ / สถานะ Login ใน Supabase (ถ้าจำเป็น)
-    DB-->>API: ยืนยันตัวตนผู้ใช้สำเร็จ
-    
-    %% ขั้นตอนการคำนวณทางดาราศาสตร์เชิงลึก
-    API->>Lahiri: ส่งคำขอคำนวณตำแหน่งดวงดาว (ระบบนิรายนะ)
-    Lahiri->>GoSwisseph: เรียกฟังก์ชันคำนวณองศาดวงดาว / Ayanamsa (Lahiri)
-    GoSwisseph->>CSwisseph: CGO / เรียกใช้งานฟังก์ชัน C/C++ (Swiss Ephemeris)
-    
-    Note over CSwisseph: ดึงไฟล์ ephe (ep4, sat) มาคำนวณทางคณิตศาสตร์ดาราศาสตร์ขั้นสูง
-    
-    CSwisseph-->>GoSwisseph: ส่งคืนค่าพิกัดดวงดาวดิบ (Raw Ephemeris)
-    GoSwisseph-->>Lahiri: ส่งคืนค่าองศาดาวที่ปรับเทียบแล้ว
-    Lahiri-->>API: ส่งคืนผลลัพธ์ตำแหน่งดาวและลัคนาที่สมบูรณ์
-    
-    %% ขั้นตอนแปลผลและบันทึก
-    API->>LLM: ส่งข้อมูลดาว + Prompt ไปยัง One API
-    LLM-->>API: ส่งคืนคำพยากรณ์จาก AI
-    
-    API->>DB: บันทึกข้อมูลการผูกดวง / ผลพยากรณ์เชื่อมโยงกับ User ลง Supabase
-    DB-->>API: บันทึกสำเร็จ
-    
-    API-->>Nginx: ส่งข้อมูลผลลัพธ์ทั้งหมดกลับ (JSON)
-    Nginx-->>Web: ส่งข้อมูลกลับ
-    Web-->>User: แสดงผลหน้าจอผูกดวง + คำพยากรณ์
-	
-	
+    actor Client as ผู้ใช้งาน (Browser / Client)
+    participant CORS as CORSMiddleware
+    participant Router as HTTP Router (ServeMux)
+    participant AuthMW as AuthMiddleware
+    participant Handler as AuthHandler
+    participant Service as AuthService
+    participant Repo as AuthRepository
+    participant SupaDB as Supabase DB (users / serial_keys)
+    participant SupaAuth as Supabase GoTrue (auth.users)
 
-graph TB
-    %% Client Layer
-    subgraph Client ["Client Layer"]
-        User(("ผู้ใช้งาน (User)"))
-        Browser["Web Browser"]
+    %% =========================================================================
+    %% ส่วนที่ 1: CORS Preflight Request
+    %% =========================================================================
+    rect rgb(240, 248, 255)
+        Note over Client,CORS: 0. การตรวจสอบ CORS Preflight (OPTIONS Request)
+        Client->>CORS: OPTIONS /api/v1/auth/*
+        CORS-->>Client: 200 OK (Set Access-Control-Allow-* Headers)
     end
 
-    %% Edge & Network Layer
-    subgraph Edge ["Edge & Infrastructure Layer"]
-        Cloudflare["Cloudflare Tunnel (cloudflared)"]
-        Nginx["Nginx Reverse Proxy"]
-    end
+    %% =========================================================================
+    %% ส่วนที่ 2: การลงทะเบียนด้วย Serial Key พร้อมระบบ Saga Rollback
+    %% =========================================================================
+    rect rgb(235, 250, 235)
+        Note over Client,SupaAuth: 1. การลงทะเบียนด้วย Serial Key (POST /api/v1/auth/register-serial)
+        Client->>CORS: POST /api/v1/auth/register-serial {username, serial_key}
+        CORS->>Router: ส่งต่อ Request พร้อมตั้งค่า CORS Headers
+        Router->>Handler: บันทึก Log คำขอ และเรียก HandleSerialRegister()
+        Handler->>Handler: ตรวจสอบ Method POST และตรวจสอบรูปแบบ Username (^[a-zA-Z0-9]+$)
 
-    %% Application Layer (Behind Nginx)
-    subgraph AppLayer ["Application Layer (Behind Nginx)"]
-        subgraph Frontend ["Frontend Service"]
-            SSRWeb["ssr-web (Frontend SSR)"]
+        alt ข้อมูล Input ไม่ถูกต้อง
+            Handler-->>Client: 400 Bad Request (JSON Error Response)
+        else ข้อมูล Input ถูกต้อง
+            Handler->>Service: RegisterWithSerial(username, serialKey)
+
+            %% Step 1: ตรวจสอบ Serial Key
+            Service->>Repo: FindSerialKey(serialKey)
+            Repo->>SupaDB: SELECT * FROM serial_keys WHERE key_code = serialKey
+            SupaDB-->>Repo: คืนข้อมูล Serial Key
+            Repo-->>Service: คืน *domain.SerialKey
+
+            alt ไม่พบ Serial Key หรือคีย์ถูกใช้งานไปแล้ว (IsUsed == true)
+                Service-->>Handler: AppError (404 Not Found / 400 Bad Request)
+                Handler-->>Client: 404 / 400 JSON Error Response
+            else Serial Key พร้อมใช้งาน
+                %% Step 2: สร้าง User ใน public.users
+                Service->>Repo: CreateUser(username)
+                Repo->>SupaDB: INSERT INTO users (username)
+                SupaDB-->>Repo: คืนข้อมูล User ที่สร้างใหม่ (user.ID)
+                Repo-->>Service: คืน *domain.User
+
+                alt ชื่อผู้ใช้ซ้ำ (CreateUser ล้มเหลว)
+                    Service-->>Handler: AppError (400 Bad Request: ชื่อผู้ใช้นี้ถูกใช้งานแล้ว)
+                    Handler-->>Client: 400 Bad Request
+                else สร้าง User ใน public.users สำเร็จ
+                    %% Step 3: สร้าง User ใน Supabase Auth
+                    Service->>Repo: CreateSupabaseAuthUser(email, serialKey, username)
+                    Repo->>SupaAuth: POST /auth/v1/admin/users (AdminCreateUser)
+
+                    alt สร้าง Supabase Auth User ล้มเหลว (Rollback ขั้นที่ 1)
+                        SupaAuth-->>Repo: Error
+                        Repo-->>Service: Error
+                        Note over Service,SupaDB: Saga Rollback: ลบ User ที่เพิ่งสร้างใน public.users ทิ้ง
+                        Service->>Repo: DeleteUser(user.ID)
+                        Repo->>SupaDB: DELETE FROM users WHERE id = user.ID
+                        Service-->>Handler: AppError (500 Internal Server Error)
+                        Handler-->>Client: 500 Internal Server Error
+                    else สร้าง Supabase Auth User สำเร็จ (ได้ authUserID)
+                        SupaAuth-->>Repo: 200 OK (authUserID UUID)
+                        Repo-->>Service: คืน authUserID
+
+                        %% Step 4: อัปเดตสถานะ Serial Key
+                        Service->>Repo: UpdateSerialKeyStatus(keyData.ID, user.ID)
+                        Repo->>SupaDB: UPDATE serial_keys SET is_used=true, user_id=user.ID
+
+                        alt อัปเดตสถานะ Serial Key ล้มเหลว (Rollback ขั้นที่ 2)
+                            SupaDB-->>Repo: Error
+                            Repo-->>Service: Error
+                            Note over Service,SupaAuth: Saga Rollback: ลบทั้ง Supabase Auth User และ User ใน public.users
+                            Service->>Repo: DeleteSupabaseAuthUser(authUserID)
+                            Repo->>SupaAuth: DELETE /auth/v1/admin/users/{authUserID}
+                            Service->>Repo: DeleteUser(user.ID)
+                            Repo->>SupaDB: DELETE FROM users WHERE id = user.ID
+                            Service-->>Handler: AppError (500 Internal Server Error)
+                            Handler-->>Client: 500 Internal Server Error
+                        else อัปเดตสถานะ Serial Key สำเร็จ
+                            SupaDB-->>Repo: 200 OK
+                            Repo-->>Service: nil (สำเร็จ)
+
+                            %% Step 5: สร้าง JWT Token
+                            Service->>Service: สร้างและลงนาม JWT Token (HS256, อายุ 24 ชม.)
+                            alt สร้าง JWT Token ล้มเหลว (Rollback ขั้นที่ 3)
+                                Note over Service,SupaAuth: Saga Rollback: คืนสถานะคีย์ + ลบ Auth User + ลบ User
+                                Service->>Repo: RollbackSerialKeyStatus(keyData.ID)
+                                Repo->>SupaDB: UPDATE serial_keys SET is_used=false, user_id=null
+                                Service->>Repo: DeleteSupabaseAuthUser(authUserID)
+                                Repo->>SupaAuth: DELETE /auth/v1/admin/users/{authUserID}
+                                Service->>Repo: DeleteUser(user.ID)
+                                Repo->>SupaDB: DELETE FROM users WHERE id = user.ID
+                                Service-->>Handler: AppError (500 Internal Server Error)
+                                Handler-->>Client: 500 Internal Server Error
+                            else สร้าง JWT Token สำเร็จ
+                                Service-->>Handler: คืนค่า signed JWT tokenString
+                                Handler->>Handler: ตั้งค่า Cookie "auth_token" (HttpOnly, SameSite=Lax, Secure ตาม Config)
+                                Handler-->>Client: 200 OK + Set-Cookie: auth_token (ลงทะเบียนสำเร็จ)
+                            end
+                        end
+                    end
+                end
+            end
         end
+    end
 
-        subgraph Backend ["Backend API Service (Go)"]
-            subgraph AuthLayer ["Authentication & Authorization"]
-                AuthMiddleware["Auth Middleware / Session Handler"]
-            end
-            
-            Handler["horaveda-app (HTTP Handlers & Business Logic)"]
-            
-            subgraph CalculationCore ["Astrological & Calculation Engines"]
-                Lahiri["lahiri-api (Lahiri Ayanamsa Calc)"]
-                GoSwisseph["go-swisseph (Go Wrapper / CGO)"]
-                CSwisseph["swisseph (C/C++ Core & Ephe Files)"]
-            end
+    %% =========================================================================
+    %% ส่วนที่ 3: การตรวจสอบสิทธิ์ผู้ใช้งาน (Verify Auth)
+    %% =========================================================================
+    rect rgb(255, 248, 230)
+        Note over Client,Service: 2. การตรวจสอบสถานะเข้าสู่ระบบ (GET /api/v1/auth/verify)
+        Client->>CORS: GET /api/v1/auth/verify (แนบ Cookie: auth_token)
+        CORS->>Router: ส่งต่อ Request
+        Router->>AuthMW: RequireAuth(HandleVerifyAuth)
+        AuthMW->>AuthMW: ดึง Cookie "auth_token"
 
-            subgraph AIIntegration ["AI Integration Layer"]
-                LLMClient["One API Client"]
+        alt ไม่มี Cookie auth_token
+            AuthMW-->>Client: 401 Unauthorized (กรุณาเข้าสู่ระบบก่อนใช้งาน)
+        else มี Cookie auth_token
+            AuthMW->>Service: VerifyToken(cookie.Value)
+            Service->>Service: ตรวจสอบ Signature (HMAC-SHA256) และวันหมดอายุ (exp)
+
+            alt Token ไม่ถูกต้องหรือหมดอายุ
+                Service-->>AuthMW: AppError (401 Unauthorized)
+                AuthMW-->>Client: 401 Unauthorized
+            else Token ถูกต้อง
+                Service-->>AuthMW: คืนค่า jwt.MapClaims
+                AuthMW->>Handler: แนบ Claims ลง Context (UserClaimsKey) แล้วเรียก HandleVerifyAuth()
+                Handler->>Handler: ดึง Claims ผ่าน middleware.GetUserClaims(r.Context())
+                Handler-->>Client: 200 OK {success: true, message: "ตรวจสอบสิทธิ์สำเร็จ", data: {username}}
             end
         end
     end
 
-    %% Data & External Services Layer
-    subgraph DataLayer ["Data & External Services Layer"]
-        Supabase[(Supabase PostgreSQL DB)]
-        GISData["GIS District Data (go-data-util)"]
-        ExternalLLM["External LLM Providers via One API<br/>(OpenAI / Claude / DeepSeek etc.)"]
+    %% =========================================================================
+    %% ส่วนที่ 4: การออกจากระบบ (Logout)
+    %% =========================================================================
+    rect rgb(253, 237, 236)
+        Note over Client,Handler: 3. การออกจากระบบ (POST /api/v1/auth/logout)
+        Client->>CORS: POST /api/v1/auth/logout
+        CORS->>Router: ส่งต่อ Request
+        Router->>Handler: เรียก HandleLogout()
+        Handler->>Handler: ตั้งค่า Cookie "auth_token" เป็นค่าว่าง และ MaxAge = -1
+        Handler-->>Client: 200 OK + Set-Cookie: auth_token="" (ออกจากระบบสำเร็จ)
     end
-
-    %% Connections & Flow
-    User -->|HTTPS Request| Cloudflare
-    Cloudflare -->|Tunnel Proxy| Nginx
-    Browser <-->|HTTP / Render UI| Nginx
-
-    %% Nginx Routing
-    Nginx -->|1. Page Request SSR| SSRWeb
-    Nginx -->|2. API Request / Auth| Handler
-    SSRWeb -.->|Fetch Data / API| Nginx
-
-    %% Backend Auth & Processing Flow
-    Handler --> AuthMiddleware
-    AuthMiddleware -->|Validate Token / Session| Handler
-    
-    Handler -->|Query Location & Timezone| GISData
-    Handler -->|Request Sidereal Chart| Lahiri
-    Lahiri -->|Calculate Raw Ephemeris| GoSwisseph
-    GoSwisseph -->|CGO / Call C++ Functions| CSwisseph
-    
-    %% LLM & Database Interaction
-    Handler -->|Send Raw Chart Data & Prompt| LLMClient
-    LLMClient -->|API Call| ExternalLLM
-    ExternalLLM -->|Return Interpretation| LLMClient
-
-    Handler -->|Read / Write User, Chart Data & Logs| Supabase

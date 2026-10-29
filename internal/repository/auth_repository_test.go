@@ -139,6 +139,32 @@ func TestCreateUser(t *testing.T) {
 	})
 }
 
+func TestDeleteUser(t *testing.T) {
+	t.Run("success", func(t *testing.T) {
+		repo, cleanup := newMockSupabaseRepo(t, func(w http.ResponseWriter, r *http.Request) {
+			w.Header().Set("Content-Type", "application/json")
+			fmt.Fprint(w, `[]`)
+		})
+		defer cleanup()
+
+		if err := repo.DeleteUser(7); err != nil {
+			t.Fatalf("expected no error, got %v", err)
+		}
+	})
+
+	t.Run("failure", func(t *testing.T) {
+		repo, cleanup := newMockSupabaseRepo(t, func(w http.ResponseWriter, r *http.Request) {
+			w.WriteHeader(http.StatusInternalServerError)
+			fmt.Fprint(w, `{"message": "delete failed"}`)
+		})
+		defer cleanup()
+
+		if err := repo.DeleteUser(7); err == nil {
+			t.Fatal("expected error on delete failure")
+		}
+	})
+}
+
 func TestCreateSupabaseAuthUser(t *testing.T) {
 	t.Run("success", func(t *testing.T) {
 		repo, cleanup := newMockSupabaseRepo(t, func(w http.ResponseWriter, r *http.Request) {
@@ -152,9 +178,12 @@ func TestCreateSupabaseAuthUser(t *testing.T) {
 		})
 		defer cleanup()
 
-		err := repo.CreateSupabaseAuthUser("testuser01@garbagecollection.info", "MALIN-VIP-001", "testuser01")
+		authID, err := repo.CreateSupabaseAuthUser("testuser01@garbagecollection.info", "MALIN-VIP-001", "testuser01")
 		if err != nil {
 			t.Fatalf("expected no error, got %v", err)
+		}
+		if authID != "00000000-0000-0000-0000-000000000001" {
+			t.Errorf("expected authID 00000000-0000-0000-0000-000000000001, got %q", authID)
 		}
 	})
 
@@ -165,9 +194,44 @@ func TestCreateSupabaseAuthUser(t *testing.T) {
 		})
 		defer cleanup()
 
-		err := repo.CreateSupabaseAuthUser("testuser01@garbagecollection.info", "MALIN-VIP-001", "testuser01")
+		_, err := repo.CreateSupabaseAuthUser("testuser01@garbagecollection.info", "MALIN-VIP-001", "testuser01")
 		if err == nil {
 			t.Fatal("expected error when auth user creation fails")
+		}
+	})
+}
+
+func TestDeleteSupabaseAuthUser(t *testing.T) {
+	t.Run("success", func(t *testing.T) {
+		repo, cleanup := newMockSupabaseRepo(t, func(w http.ResponseWriter, r *http.Request) {
+			w.WriteHeader(http.StatusOK)
+			fmt.Fprint(w, `{}`)
+		})
+		defer cleanup()
+
+		if err := repo.DeleteSupabaseAuthUser("00000000-0000-0000-0000-000000000001"); err != nil {
+			t.Fatalf("expected no error, got %v", err)
+		}
+	})
+
+	t.Run("invalid UUID", func(t *testing.T) {
+		repo, cleanup := newMockSupabaseRepo(t, func(w http.ResponseWriter, r *http.Request) {})
+		defer cleanup()
+
+		if err := repo.DeleteSupabaseAuthUser("invalid-uuid"); err == nil {
+			t.Fatal("expected error on invalid UUID")
+		}
+	})
+
+	t.Run("API failure", func(t *testing.T) {
+		repo, cleanup := newMockSupabaseRepo(t, func(w http.ResponseWriter, r *http.Request) {
+			w.WriteHeader(http.StatusInternalServerError)
+			fmt.Fprint(w, `{"msg": "delete failed"}`)
+		})
+		defer cleanup()
+
+		if err := repo.DeleteSupabaseAuthUser("00000000-0000-0000-0000-000000000001"); err == nil {
+			t.Fatal("expected error on API failure")
 		}
 	})
 }
@@ -194,6 +258,32 @@ func TestUpdateSerialKeyStatus(t *testing.T) {
 
 		if err := repo.UpdateSerialKeyStatus(1, 7); err == nil {
 			t.Fatal("expected error on update failure")
+		}
+	})
+}
+
+func TestRollbackSerialKeyStatus(t *testing.T) {
+	t.Run("success", func(t *testing.T) {
+		repo, cleanup := newMockSupabaseRepo(t, func(w http.ResponseWriter, r *http.Request) {
+			w.Header().Set("Content-Type", "application/json")
+			fmt.Fprint(w, `[{"id": 1, "is_used": false, "user_id": null}]`)
+		})
+		defer cleanup()
+
+		if err := repo.RollbackSerialKeyStatus(1); err != nil {
+			t.Fatalf("expected no error, got %v", err)
+		}
+	})
+
+	t.Run("failure", func(t *testing.T) {
+		repo, cleanup := newMockSupabaseRepo(t, func(w http.ResponseWriter, r *http.Request) {
+			w.WriteHeader(http.StatusInternalServerError)
+			fmt.Fprint(w, `{"message": "rollback failed"}`)
+		})
+		defer cleanup()
+
+		if err := repo.RollbackSerialKeyStatus(1); err == nil {
+			t.Fatal("expected error on rollback failure")
 		}
 	})
 }

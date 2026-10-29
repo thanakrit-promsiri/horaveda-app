@@ -25,10 +25,19 @@ func (r *routerStubRepo) FindSerialKey(serialKey string) (*domain.SerialKey, err
 func (r *routerStubRepo) CreateUser(username string) (*domain.User, error) {
 	return &domain.User{ID: 1, Username: username}, nil
 }
-func (r *routerStubRepo) CreateSupabaseAuthUser(email, password, username string) error {
+func (r *routerStubRepo) DeleteUser(userID int) error {
+	return nil
+}
+func (r *routerStubRepo) CreateSupabaseAuthUser(email, password, username string) (string, error) {
+	return "00000000-0000-0000-0000-000000000001", nil
+}
+func (r *routerStubRepo) DeleteSupabaseAuthUser(authUserID string) error {
 	return nil
 }
 func (r *routerStubRepo) UpdateSerialKeyStatus(keyID int, userID int) error {
+	return nil
+}
+func (r *routerStubRepo) RollbackSerialKeyStatus(keyID int) error {
 	return nil
 }
 func (r *routerStubRepo) GetAllSerialKeys() ([]map[string]interface{}, error) {

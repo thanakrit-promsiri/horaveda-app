@@ -44,19 +44,38 @@ func (s *AuthService) RegisterWithSerial(username, serialKey string) (string, er
 		return "", response.NewBadRequestError("ชื่อผู้ใช้นี้ถูกใช้งานแล้ว กรุณาใช้ชื่ออื่น", err)
 	}
 
+	// Helper สำหรับ Rollback ลบข้อมูล User ในตาราง public.users
+	rollbackUser := func() {
+		if rbErr := s.Repo.DeleteUser(user.ID); rbErr != nil {
+			s.Logger.Errorw("Rollback failed: could not delete user from public.users", "user_id", user.ID, "error", rbErr)
+		}
+	}
+
 	// 3. สร้าง User ใน Supabase Auth (auth.users)
 	email := username + "@garbagecollection.info"
-	err = s.Repo.CreateSupabaseAuthUser(email, serialKey, username)
+	authUserID, err := s.Repo.CreateSupabaseAuthUser(email, serialKey, username)
 	if err != nil {
-		s.Logger.Errorw("Failed to create Supabase auth user", "error", err)
+		s.Logger.Errorw("Failed to create Supabase auth user, initiating rollback", "error", err, "user_id", user.ID)
+		rollbackUser()
 		return "", response.NewInternalServerError("ไม่สามารถสร้างบัญชีผู้ใช้ได้", err)
 	}
-	s.Logger.Infow("สร้าง Auth User ใน Supabase สำเร็จ", "email", email)
+	s.Logger.Infow("สร้าง Auth User ใน Supabase สำเร็จ", "email", email, "auth_user_id", authUserID)
+
+	// Helper สำหรับ Rollback ลบบัญชีใน Supabase Auth (auth.users)
+	rollbackAuthUser := func() {
+		if authUserID != "" {
+			if rbErr := s.Repo.DeleteSupabaseAuthUser(authUserID); rbErr != nil {
+				s.Logger.Errorw("Rollback failed: could not delete Supabase auth user", "auth_user_id", authUserID, "error", rbErr)
+			}
+		}
+	}
 
 	// 4. อัปเดตสถานะ Serial Key ว่าถูกใช้งานแล้ว
 	err = s.Repo.UpdateSerialKeyStatus(keyData.ID, user.ID)
 	if err != nil {
-		s.Logger.Errorw("Failed to update serial key status", "error", err)
+		s.Logger.Errorw("Failed to update serial key status, initiating rollback", "error", err, "key_id", keyData.ID, "user_id", user.ID)
+		rollbackAuthUser()
+		rollbackUser()
 		return "", response.NewInternalServerError("เกิดข้อผิดพลาดในการอัปเดตสถานะคีย์", err)
 	}
 
@@ -71,7 +90,12 @@ func (s *AuthService) RegisterWithSerial(username, serialKey string) (string, er
 	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
 	tokenString, err := token.SignedString(s.JWTSecret)
 	if err != nil {
-		s.Logger.Errorw("Failed to sign JWT token", "error", err)
+		s.Logger.Errorw("Failed to sign JWT token, initiating rollback", "error", err, "user_id", user.ID)
+		if rbErr := s.Repo.RollbackSerialKeyStatus(keyData.ID); rbErr != nil {
+			s.Logger.Errorw("Rollback failed: could not revert serial key status", "key_id", keyData.ID, "error", rbErr)
+		}
+		rollbackAuthUser()
+		rollbackUser()
 		return "", response.NewInternalServerError("ไม่สามารถสร้าง Token ได้", err)
 	}
 

@@ -14,11 +14,14 @@ import (
 )
 
 type mockAuthRepository struct {
-	findSerialKeyFn          func(serialKey string) (*domain.SerialKey, error)
-	createUserFn             func(username string) (*domain.User, error)
-	createSupabaseAuthUserFn func(email, password, username string) error
-	updateSerialKeyStatusFn  func(keyID int, userID int) error
-	getAllSerialKeysFn       func() ([]map[string]interface{}, error)
+	findSerialKeyFn           func(serialKey string) (*domain.SerialKey, error)
+	createUserFn              func(username string) (*domain.User, error)
+	deleteUserFn              func(userID int) error
+	createSupabaseAuthUserFn  func(email, password, username string) (string, error)
+	deleteSupabaseAuthUserFn  func(authUserID string) error
+	updateSerialKeyStatusFn   func(keyID int, userID int) error
+	rollbackSerialKeyStatusFn func(keyID int) error
+	getAllSerialKeysFn        func() ([]map[string]interface{}, error)
 }
 
 func (m *mockAuthRepository) FindSerialKey(serialKey string) (*domain.SerialKey, error) {
@@ -29,12 +32,33 @@ func (m *mockAuthRepository) CreateUser(username string) (*domain.User, error) {
 	return m.createUserFn(username)
 }
 
-func (m *mockAuthRepository) CreateSupabaseAuthUser(email, password, username string) error {
+func (m *mockAuthRepository) DeleteUser(userID int) error {
+	if m.deleteUserFn != nil {
+		return m.deleteUserFn(userID)
+	}
+	return nil
+}
+
+func (m *mockAuthRepository) CreateSupabaseAuthUser(email, password, username string) (string, error) {
 	return m.createSupabaseAuthUserFn(email, password, username)
+}
+
+func (m *mockAuthRepository) DeleteSupabaseAuthUser(authUserID string) error {
+	if m.deleteSupabaseAuthUserFn != nil {
+		return m.deleteSupabaseAuthUserFn(authUserID)
+	}
+	return nil
 }
 
 func (m *mockAuthRepository) UpdateSerialKeyStatus(keyID int, userID int) error {
 	return m.updateSerialKeyStatusFn(keyID, userID)
+}
+
+func (m *mockAuthRepository) RollbackSerialKeyStatus(keyID int) error {
+	if m.rollbackSerialKeyStatusFn != nil {
+		return m.rollbackSerialKeyStatusFn(keyID)
+	}
+	return nil
 }
 
 func (m *mockAuthRepository) GetAllSerialKeys() ([]map[string]interface{}, error) {
@@ -53,11 +77,11 @@ func TestRegisterWithSerial_Success(t *testing.T) {
 		createUserFn: func(username string) (*domain.User, error) {
 			return &domain.User{ID: 7, Username: username}, nil
 		},
-		createSupabaseAuthUserFn: func(email, password, username string) error {
+		createSupabaseAuthUserFn: func(email, password, username string) (string, error) {
 			if email != "testuser01@garbagecollection.info" {
 				t.Errorf("unexpected email: %s", email)
 			}
-			return nil
+			return "00000000-0000-0000-0000-000000000001", nil
 		},
 		updateSerialKeyStatusFn: func(keyID int, userID int) error {
 			if keyID != 10 || userID != 7 {
@@ -142,7 +166,8 @@ func TestRegisterWithSerial_DuplicateUsername(t *testing.T) {
 	}
 }
 
-func TestRegisterWithSerial_SupabaseAuthFailure(t *testing.T) {
+func TestRegisterWithSerial_SupabaseAuthFailure_RollsBackUser(t *testing.T) {
+	var rolledBackUserID int
 	repo := &mockAuthRepository{
 		findSerialKeyFn: func(serialKey string) (*domain.SerialKey, error) {
 			return &domain.SerialKey{ID: 1, KeyCode: serialKey, IsUsed: false}, nil
@@ -150,8 +175,12 @@ func TestRegisterWithSerial_SupabaseAuthFailure(t *testing.T) {
 		createUserFn: func(username string) (*domain.User, error) {
 			return &domain.User{ID: 5, Username: username}, nil
 		},
-		createSupabaseAuthUserFn: func(email, password, username string) error {
-			return errors.New("supabase auth error")
+		deleteUserFn: func(userID int) error {
+			rolledBackUserID = userID
+			return errors.New("simulated rollback log test")
+		},
+		createSupabaseAuthUserFn: func(email, password, username string) (string, error) {
+			return "", errors.New("supabase auth error")
 		},
 	}
 
@@ -160,13 +189,19 @@ func TestRegisterWithSerial_SupabaseAuthFailure(t *testing.T) {
 	if err == nil {
 		t.Fatal("expected error, got nil")
 	}
+	if rolledBackUserID != 5 {
+		t.Errorf("expected rollback DeleteUser(5) to be called, got %d", rolledBackUserID)
+	}
 	appErr, ok := err.(*response.AppError)
 	if !ok || appErr.Code != http.StatusInternalServerError {
 		t.Errorf("expected 500 AppError, got %+v", err)
 	}
 }
 
-func TestRegisterWithSerial_UpdateSerialKeyStatusFailure(t *testing.T) {
+func TestRegisterWithSerial_UpdateSerialKeyStatusFailure_RollsBackBothUsers(t *testing.T) {
+	var rolledBackUserID int
+	var rolledBackAuthUserID string
+
 	repo := &mockAuthRepository{
 		findSerialKeyFn: func(serialKey string) (*domain.SerialKey, error) {
 			return &domain.SerialKey{ID: 1, KeyCode: serialKey, IsUsed: false}, nil
@@ -174,8 +209,16 @@ func TestRegisterWithSerial_UpdateSerialKeyStatusFailure(t *testing.T) {
 		createUserFn: func(username string) (*domain.User, error) {
 			return &domain.User{ID: 5, Username: username}, nil
 		},
-		createSupabaseAuthUserFn: func(email, password, username string) error {
+		deleteUserFn: func(userID int) error {
+			rolledBackUserID = userID
 			return nil
+		},
+		createSupabaseAuthUserFn: func(email, password, username string) (string, error) {
+			return "00000000-0000-0000-0000-000000000099", nil
+		},
+		deleteSupabaseAuthUserFn: func(authUserID string) error {
+			rolledBackAuthUserID = authUserID
+			return errors.New("simulated auth rollback log test")
 		},
 		updateSerialKeyStatusFn: func(keyID int, userID int) error {
 			return errors.New("update status failed")
@@ -186,6 +229,12 @@ func TestRegisterWithSerial_UpdateSerialKeyStatusFailure(t *testing.T) {
 	_, err := svc.RegisterWithSerial("testuser", "VALID-KEY")
 	if err == nil {
 		t.Fatal("expected error, got nil")
+	}
+	if rolledBackUserID != 5 {
+		t.Errorf("expected DeleteUser(5) to be called, got %d", rolledBackUserID)
+	}
+	if rolledBackAuthUserID != "00000000-0000-0000-0000-000000000099" {
+		t.Errorf("expected DeleteSupabaseAuthUser to be called, got %q", rolledBackAuthUserID)
 	}
 	appErr, ok := err.(*response.AppError)
 	if !ok || appErr.Code != http.StatusInternalServerError {

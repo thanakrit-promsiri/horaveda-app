@@ -7,3 +7,4 @@
 {"level":"info","ts":"2026-10-29T10:25:50.518+0700","caller":"logger/logger_test.go:12","msg":"test logger initialized"}
 {"level":"info","ts":"2026-10-29T10:25:52.703+0700","caller":"logger/logger_test.go:12","msg":"test logger initialized"}
 {"level":"info","ts":"2026-10-29T10:25:54.672+0700","caller":"logger/logger_test.go:12","msg":"test logger initialized"}
+{"level":"info","ts":"2026-10-29T10:39:55.353+0700","caller":"logger/logger_test.go:12","msg":"test logger initialized"}
