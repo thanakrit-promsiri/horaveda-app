@@ -16,15 +16,24 @@ import (
 )
 
 type stubAuthRepo struct {
-	findSerialKeyFn          func(serialKey string) (*domain.SerialKey, error)
-	createUserFn             func(username string) (*domain.User, error)
-	createSupabaseAuthUserFn func(email, password, username string) (string, error)
-	updateSerialKeyStatusFn  func(keyID int, userID int) error
-	getAllSerialKeysFn       func() ([]map[string]interface{}, error)
+	findSerialKeyFn                 func(serialKey string) (*domain.SerialKey, error)
+	findUserByUsernameFn            func(username string) (*domain.User, error)
+	createUserFn                    func(username string) (*domain.User, error)
+	createSupabaseAuthUserFn        func(email, password, username string) (string, error)
+	updateSerialKeyStatusFn         func(keyID int, userID int) error
+	revokeSerialKeysByUserIDFn      func(userID int) ([]domain.SerialKey, error)
+	deleteSupabaseAuthUserByEmailFn func(email string) error
+	getAllSerialKeysFn              func() ([]map[string]interface{}, error)
 }
 
 func (s *stubAuthRepo) FindSerialKey(serialKey string) (*domain.SerialKey, error) {
 	return s.findSerialKeyFn(serialKey)
+}
+func (s *stubAuthRepo) FindUserByUsername(username string) (*domain.User, error) {
+	if s.findUserByUsernameFn != nil {
+		return s.findUserByUsernameFn(username)
+	}
+	return &domain.User{ID: 38, Username: username}, nil
 }
 func (s *stubAuthRepo) CreateUser(username string) (*domain.User, error) {
 	return s.createUserFn(username)
@@ -38,11 +47,23 @@ func (s *stubAuthRepo) CreateSupabaseAuthUser(email, password, username string) 
 func (s *stubAuthRepo) DeleteSupabaseAuthUser(authUserID string) error {
 	return nil
 }
+func (s *stubAuthRepo) DeleteSupabaseAuthUserByEmail(email string) error {
+	if s.deleteSupabaseAuthUserByEmailFn != nil {
+		return s.deleteSupabaseAuthUserByEmailFn(email)
+	}
+	return nil
+}
 func (s *stubAuthRepo) UpdateSerialKeyStatus(keyID int, userID int) error {
 	return s.updateSerialKeyStatusFn(keyID, userID)
 }
 func (s *stubAuthRepo) RollbackSerialKeyStatus(keyID int) error {
 	return nil
+}
+func (s *stubAuthRepo) RevokeSerialKeysByUserID(userID int) ([]domain.SerialKey, error) {
+	if s.revokeSerialKeysByUserIDFn != nil {
+		return s.revokeSerialKeysByUserIDFn(userID)
+	}
+	return []domain.SerialKey{{ID: 1, KeyCode: "BOOM-VIP-001"}}, nil
 }
 func (s *stubAuthRepo) GetAllSerialKeys() ([]map[string]interface{}, error) {
 	return s.getAllSerialKeysFn()
@@ -51,10 +72,11 @@ func (s *stubAuthRepo) GetAllSerialKeys() ([]map[string]interface{}, error) {
 func setupHandler(repo *stubAuthRepo) *AuthHandler {
 	log := zap.NewNop().Sugar()
 	cfg := &config.Config{
-		Logger:     log,
-		Port:       "8080",
-		JWTSecret:  []byte("handler-secret"),
-		CORSOrigin: "*",
+		Logger:      log,
+		Port:        "8080",
+		JWTSecret:   []byte("handler-secret"),
+		CORSOrigin:  "*",
+		AdminAPIKey: "admin-key",
 	}
 	svc := service.NewAuthService(repo, log, cfg.JWTSecret)
 	return NewAuthHandler(svc, log, cfg)
@@ -87,7 +109,7 @@ func TestHandleSerialRegister(t *testing.T) {
 
 	t.Run("non-alphanumeric username", func(t *testing.T) {
 		h := setupHandler(&stubAuthRepo{})
-		body := `{"username": "ผู้ใช้_01!", "serial_key": "MALIN-VIP-001"}`
+		body := `{"username": "ผู้ใช้_01!", "serial_key": "BOOM-VIP-001"}`
 		req := httptest.NewRequest(http.MethodPost, "/api/v1/auth/register-serial", bytes.NewBufferString(body))
 		rr := httptest.NewRecorder()
 
@@ -132,7 +154,7 @@ func TestHandleSerialRegister(t *testing.T) {
 			},
 		}
 		h := setupHandler(repo)
-		body := `{"username": "testuser01", "serial_key": "MALIN-VIP-001"}`
+		body := `{"username": "testuser01", "serial_key": "BOOM-VIP-001"}`
 		req := httptest.NewRequest(http.MethodPost, "/api/v1/auth/register-serial", bytes.NewBufferString(body))
 		rr := httptest.NewRecorder()
 
@@ -154,6 +176,61 @@ func TestHandleSerialRegister(t *testing.T) {
 		}
 		if !foundCookie.HttpOnly {
 			t.Error("expected HttpOnly cookie")
+		}
+	})
+}
+
+func TestHandleRevokeUser(t *testing.T) {
+	t.Run("method not allowed", func(t *testing.T) {
+		h := setupHandler(&stubAuthRepo{})
+		req := httptest.NewRequest(http.MethodGet, "/api/v1/auth/revoke-user", nil)
+		rr := httptest.NewRecorder()
+
+		h.HandleRevokeUser(rr, req)
+
+		if rr.Code != http.StatusMethodNotAllowed {
+			t.Errorf("expected 405, got %d", rr.Code)
+		}
+	})
+
+	t.Run("invalid payload", func(t *testing.T) {
+		h := setupHandler(&stubAuthRepo{})
+		req := httptest.NewRequest(http.MethodPost, "/api/v1/auth/revoke-user", bytes.NewBufferString(`{"username": ""}`))
+		rr := httptest.NewRecorder()
+
+		h.HandleRevokeUser(rr, req)
+
+		if rr.Code != http.StatusBadRequest {
+			t.Errorf("expected 400, got %d", rr.Code)
+		}
+	})
+
+	t.Run("user not found returns 404", func(t *testing.T) {
+		repo := &stubAuthRepo{
+			findUserByUsernameFn: func(username string) (*domain.User, error) {
+				return nil, errors.New("not found")
+			},
+		}
+		h := setupHandler(repo)
+		req := httptest.NewRequest(http.MethodPost, "/api/v1/auth/revoke-user", bytes.NewBufferString(`{"username": "testuser01"}`))
+		rr := httptest.NewRecorder()
+
+		h.HandleRevokeUser(rr, req)
+
+		if rr.Code != http.StatusNotFound {
+			t.Errorf("expected 404, got %d", rr.Code)
+		}
+	})
+
+	t.Run("success", func(t *testing.T) {
+		h := setupHandler(&stubAuthRepo{})
+		req := httptest.NewRequest(http.MethodPost, "/api/v1/auth/revoke-user", bytes.NewBufferString(`{"username": "testuser01"}`))
+		rr := httptest.NewRecorder()
+
+		h.HandleRevokeUser(rr, req)
+
+		if rr.Code != http.StatusOK {
+			t.Errorf("expected 200, got %d", rr.Code)
 		}
 	})
 }
@@ -242,6 +319,107 @@ func TestHandleDebugGetAllKeys(t *testing.T) {
 		rr := httptest.NewRecorder()
 
 		h.HandleDebugGetAllKeys(rr, req)
+
+		if rr.Code != http.StatusInternalServerError {
+			t.Errorf("expected 500, got %d", rr.Code)
+		}
+	})
+}
+
+type roundTripFunc func(req *http.Request) (*http.Response, error)
+
+func (f roundTripFunc) RoundTrip(req *http.Request) (*http.Response, error) {
+	return f(req)
+}
+
+func TestHandleHoraPredict(t *testing.T) {
+	t.Run("method not allowed", func(t *testing.T) {
+		h := setupHandler(&stubAuthRepo{})
+		req := httptest.NewRequest(http.MethodGet, "/api/v1/hora/predict", nil)
+		rr := httptest.NewRecorder()
+
+		h.HandleHoraPredict(rr, req)
+
+		if rr.Code != http.StatusMethodNotAllowed {
+			t.Errorf("expected 405, got %d", rr.Code)
+		}
+	})
+
+	t.Run("invalid JSON payload", func(t *testing.T) {
+		h := setupHandler(&stubAuthRepo{})
+		req := httptest.NewRequest(http.MethodPost, "/api/v1/hora/predict", bytes.NewBufferString(`{invalid`))
+		rr := httptest.NewRecorder()
+
+		h.HandleHoraPredict(rr, req)
+
+		if rr.Code != http.StatusBadRequest {
+			t.Errorf("expected 400, got %d", rr.Code)
+		}
+	})
+
+	t.Run("invalid field ranges", func(t *testing.T) {
+		h := setupHandler(&stubAuthRepo{})
+		cases := []string{
+			`{"year": 0, "month": 12, "day": 23, "hour_thai": 10.35, "latitude": 13.7563, "longitude": 100.5018}`,
+			`{"year": 1988, "month": 13, "day": 23, "hour_thai": 10.35, "latitude": 13.7563, "longitude": 100.5018}`,
+			`{"year": 1988, "month": 12, "day": 32, "hour_thai": 10.35, "latitude": 13.7563, "longitude": 100.5018}`,
+			`{"year": 1988, "month": 12, "day": 23, "hour_thai": 24.5, "latitude": 13.7563, "longitude": 100.5018}`,
+			`{"year": 1988, "month": 12, "day": 23, "hour_thai": 10.35, "latitude": 95.0, "longitude": 100.5018}`,
+			`{"year": 1988, "month": 12, "day": 23, "hour_thai": 10.35, "latitude": 13.7563, "longitude": 190.0}`,
+		}
+		for _, body := range cases {
+			req := httptest.NewRequest(http.MethodPost, "/api/v1/hora/predict", bytes.NewBufferString(body))
+			rr := httptest.NewRecorder()
+			h.HandleHoraPredict(rr, req)
+			if rr.Code != http.StatusBadRequest {
+				t.Errorf("expected 400 for body %s, got %d", body, rr.Code)
+			}
+		}
+	})
+
+	t.Run("success calls Hora Prompt API and returns prompt", func(t *testing.T) {
+		mockClient := &http.Client{
+			Transport: roundTripFunc(func(req *http.Request) (*http.Response, error) {
+				rr := httptest.NewRecorder()
+				rr.Header().Set("Content-Type", "application/json")
+				rr.WriteHeader(http.StatusOK)
+				_, _ = rr.Write([]byte(`{"status":"success","prompt":"[Vedic Sidereal(Lahiri)/WholeSign]"}`))
+				return rr.Result(), nil
+			}),
+		}
+
+		h := setupHandler(&stubAuthRepo{})
+		h.HoraService = service.NewHoraService("http://localhost:8083/api/v1/hora/prompt", h.Logger, mockClient)
+
+		body := `{"year": 1988, "month": 12, "day": 23, "hour_thai": 10.35, "latitude": 13.7563, "longitude": 100.5018}`
+		req := httptest.NewRequest(http.MethodPost, "/api/v1/hora/predict", bytes.NewBufferString(body))
+		ctx := context.WithValue(req.Context(), "userClaims", map[string]interface{}{"username": "testuser01"})
+		rr := httptest.NewRecorder()
+
+		h.HandleHoraPredict(rr, req.WithContext(ctx))
+
+		if rr.Code != http.StatusOK {
+			t.Errorf("expected 200, got %d", rr.Code)
+		}
+	})
+
+	t.Run("downstream error returns 500", func(t *testing.T) {
+		mockClient := &http.Client{
+			Transport: roundTripFunc(func(req *http.Request) (*http.Response, error) {
+				rr := httptest.NewRecorder()
+				rr.WriteHeader(http.StatusInternalServerError)
+				return rr.Result(), nil
+			}),
+		}
+
+		h := setupHandler(&stubAuthRepo{})
+		h.HoraService = service.NewHoraService("http://localhost:8083/api/v1/hora/prompt", h.Logger, mockClient)
+
+		body := `{"year": 1988, "month": 12, "day": 23, "hour_thai": 10.35, "latitude": 13.7563, "longitude": 100.5018}`
+		req := httptest.NewRequest(http.MethodPost, "/api/v1/hora/predict", bytes.NewBufferString(body))
+		rr := httptest.NewRecorder()
+
+		h.HandleHoraPredict(rr, req)
 
 		if rr.Code != http.StatusInternalServerError {
 			t.Errorf("expected 500, got %d", rr.Code)

@@ -18,6 +18,8 @@ type Config struct {
 	JWTSecret      []byte
 	CORSOrigin     string // <-- เพิ่มฟิลด์นี้เข้าไป
 	CookieSecure   bool   // กำหนดค่า Secure ของ Cookie ให้สอดคล้องกันทั้งระบบ
+	AdminAPIKey    string // คีย์สำหรับยืนยันสิทธิ์ผู้ดูแลระบบ (Admin Endpoints)
+	HoraAPIURL     string // URL สำหรับเรียกใช้บริการคำนวณพื้นดวงชะตา (Lahiri Prompt API)
 }
 
 func LoadConfig() *Config {
@@ -69,6 +71,18 @@ func LoadConfig() *Config {
 	cookieSecure := strings.EqualFold(os.Getenv("COOKIE_SECURE"), "true") ||
 		strings.EqualFold(os.Getenv("APP_ENV"), "production")
 
+	// ดึงค่า ADMIN_API_KEY จาก .env (หากไม่ได้ตั้งค่าแยกไว้ จะใช้ NEXT_PUBLIC_SUPABASE_SERVICE_ROLE_KEY ที่มีอยู่แล้วแทน)
+	adminAPIKey := os.Getenv("ADMIN_API_KEY")
+	if adminAPIKey == "" {
+		adminAPIKey = os.Getenv("NEXT_PUBLIC_SUPABASE_SERVICE_ROLE_KEY")
+	}
+
+	// ดึงค่า HORA_API_URL จาก .env (หากไม่ได้ตั้งค่าไว้ จะใช้ค่า Default เป็น http://localhost:8083/api/v1/hora/prompt)
+	horaAPIURL := os.Getenv("HORA_API_URL")
+	if horaAPIURL == "" {
+		horaAPIURL = "http://localhost:8083/api/v1/hora/prompt"
+	}
+
 	return &Config{
 		SupabaseClient: client,
 		Logger:         sugar,
@@ -76,5 +90,7 @@ func LoadConfig() *Config {
 		JWTSecret:      []byte(jwtSecret),
 		CORSOrigin:     corsOrigin, // <-- กำหนดค่าที่นี่
 		CookieSecure:   cookieSecure,
+		AdminAPIKey:    adminAPIKey,
+		HoraAPIURL:     horaAPIURL,
 	}
 }

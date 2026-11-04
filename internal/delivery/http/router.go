@@ -27,6 +27,16 @@ func NewRouter(authHandler *handler.AuthHandler, authMiddleware *middleware.Auth
 
 	// Protected Routes (ต้องผ่านการตรวจสอบสิทธิ์ผ่าน Auth Middleware ก่อน พร้อมใส่ Log)
 	mux.HandleFunc("GET /api/v1/auth/verify", logRequest(authMiddleware.RequireAuth(authHandler.HandleVerifyAuth), "VerifyAuth"))
+	mux.HandleFunc("POST /api/v1/hora/predict", logRequest(authMiddleware.RequireAuth(authHandler.HandleHoraPredict), "HoraPredict"))
+	mux.HandleFunc("POST /api/v1/hora/prompt", logRequest(authMiddleware.RequireAuth(authHandler.HandleHoraPredict), "HoraPrompt"))
+
+	// Admin Routes (ต้องผ่านการตรวจสอบ Admin API Key ผ่าน Header X-Admin-Key หรือ Authorization Bearer)
+	adminKey := ""
+	if authHandler != nil && authHandler.Cfg != nil {
+		adminKey = authHandler.Cfg.AdminAPIKey
+	}
+	mux.HandleFunc("POST /api/v1/auth/revoke-user", logRequest(authMiddleware.RequireAdminKey(adminKey, authHandler.HandleRevokeUser), "RevokeUserPost"))
+	mux.HandleFunc("DELETE /api/v1/auth/revoke-user", logRequest(authMiddleware.RequireAdminKey(adminKey, authHandler.HandleRevokeUser), "RevokeUserDelete"))
 
 	return mux
 }

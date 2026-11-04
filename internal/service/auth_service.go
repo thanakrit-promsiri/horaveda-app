@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"time"
 
+	"horaveda-app/internal/domain"
 	"horaveda-app/internal/repository"
 	"horaveda-app/pkg/response"
 
@@ -100,6 +101,66 @@ func (s *AuthService) RegisterWithSerial(username, serialKey string) (string, er
 	}
 
 	return tokenString, nil
+}
+
+// RevokeUserAndSerial ถอนการใช้งาน Serial Key ออกจากผู้ใช้ และลบข้อมูลผู้ใช้ทั้งในตาราง public.users และ Supabase Auth (auth.users)
+func (s *AuthService) RevokeUserAndSerial(username string) (*domain.RevokeUserResponse, error) {
+	s.Logger.Infow("กำลังเริ่มต้นกระบวนการถอนสิทธิ์ Serial Key และลบบัญชีผู้ใช้", "username", username)
+
+	// 1. ค้นหาผู้ใช้ในตาราง public.users ด้วย username
+	user, err := s.Repo.FindUserByUsername(username)
+	if err != nil {
+		return nil, response.NewNotFoundError("ไม่พบชื่อผู้ใช้นี้ในระบบ", err)
+	}
+
+	// 2. ถอนสิทธิ์การใช้งาน Serial Key ทั้งหมดที่ผูกกับ user.ID (ตั้งค่า is_used = false, user_id = nil)
+	// ต้องทำก่อนลบแถวใน public.users เพื่อไม่ให้ติด Foreign Key Constraint
+	revokedKeyRecords, err := s.Repo.RevokeSerialKeysByUserID(user.ID)
+	if err != nil {
+		s.Logger.Errorw("Failed to revoke serial keys for user", "username", username, "user_id", user.ID, "error", err)
+		return nil, response.NewInternalServerError("ไม่สามารถถอนสิทธิ์การใช้งานรหัสซีเรียลได้", err)
+	}
+
+	revokedKeyCodes := make([]string, 0, len(revokedKeyRecords))
+	for _, k := range revokedKeyRecords {
+		revokedKeyCodes = append(revokedKeyCodes, k.KeyCode)
+	}
+
+	// Helper สำหรับผูก Serial Key กลับคืนให้ผู้ใช้ (Saga Rollback กรณีลบข้อมูลผู้ใช้ล้มเหลว)
+	restoreRevokedKeys := func() {
+		for _, k := range revokedKeyRecords {
+			if rbErr := s.Repo.UpdateSerialKeyStatus(k.ID, user.ID); rbErr != nil {
+				s.Logger.Errorw("Rollback failed: could not re-bind serial key to user", "key_id", k.ID, "user_id", user.ID, "error", rbErr)
+			}
+		}
+	}
+
+	// 3. ลบผู้ใช้จากตาราง public.users
+	if err := s.Repo.DeleteUser(user.ID); err != nil {
+		s.Logger.Errorw("Failed to delete user from public.users, rolling back serial keys", "username", username, "user_id", user.ID, "error", err)
+		restoreRevokedKeys()
+		return nil, response.NewInternalServerError("ไม่สามารถลบข้อมูลผู้ใช้ออกจากฐานข้อมูลได้", err)
+	}
+
+	// 4. ลบบัญชีผู้ใช้บน Supabase Auth (auth.users) เช่น testuser01@garbagecollection.info
+	email := username + "@garbagecollection.info"
+	if err := s.Repo.DeleteSupabaseAuthUserByEmail(email); err != nil {
+		s.Logger.Errorw("Failed to delete user from Supabase Auth, rolling back public.users and serial_keys", "email", email, "error", err)
+		if recreatedUser, rbErr := s.Repo.CreateUser(username); rbErr == nil && recreatedUser != nil {
+			for _, k := range revokedKeyRecords {
+				_ = s.Repo.UpdateSerialKeyStatus(k.ID, recreatedUser.ID)
+			}
+		}
+		return nil, response.NewInternalServerError("ไม่สามารถลบบัญชีผู้ใช้บน Supabase Auth ได้", err)
+	}
+
+	s.Logger.Infow("ถอนสิทธิ์ Serial Key และลบบัญชีผู้ใช้สำเร็จ", "username", username, "email", email, "revoked_keys", revokedKeyCodes)
+
+	return &domain.RevokeUserResponse{
+		Username:      username,
+		SupabaseEmail: email,
+		RevokedKeys:   revokedKeyCodes,
+	}, nil
 }
 
 func (s *AuthService) GetAllKeys() ([]map[string]interface{}, error) {

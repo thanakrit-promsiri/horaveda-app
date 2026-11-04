@@ -153,3 +153,40 @@ sequenceDiagram
         Handler->>Handler: ตั้งค่า Cookie "auth_token" เป็นค่าว่าง และ MaxAge = -1
         Handler-->>Client: 200 OK + Set-Cookie: auth_token="" (ออกจากระบบสำเร็จ)
     end
+
+    %% =========================================================================
+    %% ส่วนที่ 5: การถอนสิทธิ์ Serial Key และลบผู้ใช้ (Revoke User - Admin)
+    %% =========================================================================
+    rect rgb(245, 238, 255)
+        Note over Client,SupaAuth: 4. การถอนสิทธิ์ Serial Key และลบผู้ใช้ (POST / DELETE /api/v1/auth/revoke-user)
+        Client->>CORS: POST /api/v1/auth/revoke-user (Header: X-Admin-Key, Body: {username: "testuser01"})
+        CORS->>Router: ส่งต่อ Request
+        Router->>AuthMW: RequireAdminKey(adminKey, HandleRevokeUser)
+        AuthMW->>AuthMW: ตรวจสอบ X-Admin-Key / Bearer Token ด้วย ConstantTimeCompare
+
+        alt ไม่มีคีย์ หรือ Admin Key ไม่ถูกต้อง
+            AuthMW-->>Client: 401 Unauthorized / 403 Forbidden
+        else Admin Key ถูกต้อง
+            AuthMW->>Handler: เรียก HandleRevokeUser()
+            Handler->>Service: RevokeUserAndSerial("testuser01")
+            Service->>Repo: FindUserByUsername("testuser01")
+            Repo->>SupaDB: SELECT * FROM users WHERE username = 'testuser01'
+            SupaDB-->>Repo: คืนข้อมูล User (id = 38)
+            Repo-->>Service: คืน *domain.User
+
+            Service->>Repo: RevokeSerialKeysByUserID(38)
+            Repo->>SupaDB: UPDATE serial_keys SET is_used=false, user_id=null WHERE user_id = 38
+            SupaDB-->>Repo: คืนรายการคีย์ที่ถูกถอนสิทธิ์ (เช่น BOOM-VIP-001)
+            Repo-->>Service: คืน []domain.SerialKey
+
+            Service->>Repo: DeleteUser(38)
+            Repo->>SupaDB: DELETE FROM users WHERE id = 38
+            SupaDB-->>Repo: ลบสำเร็จ
+
+            Service->>Repo: DeleteSupabaseAuthUserByEmail("testuser01@garbagecollection.info")
+            Repo->>SupaAuth: GET /auth/v1/admin/users -> DELETE /auth/v1/admin/users/{uuid}
+            SupaAuth-->>Repo: ลบ Auth User สำเร็จ
+            Service-->>Handler: คืน RevokeUserResponse {username, supabase_email, revoked_keys}
+            Handler-->>Client: 200 OK (ถอนสิทธิ์การใช้งาน Serial Key และลบบัญชีผู้ใช้สำเร็จ)
+        end
+    end

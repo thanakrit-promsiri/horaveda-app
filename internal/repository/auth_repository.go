@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"strings"
 
 	"horaveda-app/internal/domain"
 
@@ -15,12 +16,15 @@ import (
 
 type AuthRepository interface {
 	FindSerialKey(serialKey string) (*domain.SerialKey, error)
+	FindUserByUsername(username string) (*domain.User, error)
 	CreateUser(username string) (*domain.User, error)
 	DeleteUser(userID int) error
 	CreateSupabaseAuthUser(email, password, username string) (string, error)
 	DeleteSupabaseAuthUser(authUserID string) error
+	DeleteSupabaseAuthUserByEmail(email string) error
 	UpdateSerialKeyStatus(keyID int, userID int) error
 	RollbackSerialKeyStatus(keyID int) error
+	RevokeSerialKeysByUserID(userID int) ([]domain.SerialKey, error)
 	GetAllSerialKeys() ([]map[string]interface{}, error)
 }
 
@@ -52,6 +56,29 @@ func (r *authRepository) FindSerialKey(serialKey string) (*domain.SerialKey, err
 
 	r.logger.Infow("Successfully found serial key", "key_code", serialKey)
 	return &keys[0], nil
+}
+
+// FindUserByUsername ค้นหาข้อมูลผู้ใช้จากตาราง public.users ด้วยชื่อผู้ใช้ (username)
+func (r *authRepository) FindUserByUsername(username string) (*domain.User, error) {
+	var users []domain.User
+	data, _, err := r.client.From("users").Select("*", "exact", false).Eq("username", username).Execute()
+	if err != nil {
+		r.logger.Errorw("Database query error (users)", "username", username, "error", err)
+		return nil, err
+	}
+
+	if err := json.Unmarshal(data, &users); err != nil {
+		r.logger.Errorw("Failed to parse users data", "username", username, "error", err)
+		return nil, errors.New("เกิดข้อผิดพลาดในการแปลงข้อมูลผู้ใช้")
+	}
+
+	if len(users) == 0 {
+		r.logger.Warnw("User not found", "username", username)
+		return nil, errors.New("ไม่พบชื่อผู้ใช้นี้ในระบบ")
+	}
+
+	r.logger.Infow("Successfully found user", "username", username, "user_id", users[0].ID)
+	return &users[0], nil
 }
 
 func (r *authRepository) CreateUser(username string) (*domain.User, error) {
@@ -127,6 +154,33 @@ func (r *authRepository) DeleteSupabaseAuthUser(authUserID string) error {
 	return nil
 }
 
+// DeleteSupabaseAuthUserByEmail ค้นหาและลบบัญชีผู้ใช้จากระบบ Supabase Auth (auth.users) ด้วยอีเมล
+func (r *authRepository) DeleteSupabaseAuthUserByEmail(email string) error {
+	listResp, err := r.client.Auth.AdminListUsers()
+	if err != nil {
+		r.logger.Errorw("Failed to list Supabase auth users", "email", email, "error", err)
+		return errors.New("ไม่สามารถดึงรายการผู้ใช้จาก Supabase Auth ได้: " + err.Error())
+	}
+
+	if listResp == nil {
+		return nil
+	}
+
+	for _, u := range listResp.Users {
+		if strings.EqualFold(u.Email, email) {
+			if err := r.client.Auth.AdminDeleteUser(types.AdminDeleteUserRequest{UserID: u.ID}); err != nil {
+				r.logger.Errorw("Failed to delete Supabase auth user by email", "email", email, "auth_user_id", u.ID.String(), "error", err)
+				return errors.New("ไม่สามารถลบบัญชีผู้ใช้บน Supabase Auth ได้: " + err.Error())
+			}
+			r.logger.Infow("Successfully deleted Supabase auth user by email", "email", email, "auth_user_id", u.ID.String())
+			return nil
+		}
+	}
+
+	r.logger.Warnw("Supabase auth user not found for email (already deleted or missing)", "email", email)
+	return nil
+}
+
 func (r *authRepository) UpdateSerialKeyStatus(keyID int, userID int) error {
 	_, _, err := r.client.From("serial_keys").Update(map[string]interface{}{
 		"is_used": true,
@@ -156,6 +210,42 @@ func (r *authRepository) RollbackSerialKeyStatus(keyID int) error {
 
 	r.logger.Infow("Successfully rolled back serial key status", "key_id", keyID)
 	return nil
+}
+
+// RevokeSerialKeysByUserID ถอนการใช้งาน Serial Key ทั้งหมดที่ผูกกับ user_id ให้กลับมาพร้อมใช้งานอีกครั้ง
+func (r *authRepository) RevokeSerialKeysByUserID(userID int) ([]domain.SerialKey, error) {
+	userIDStr := fmt.Sprintf("%d", userID)
+
+	// 1. ดึงรายการ Serial Key ที่ผูกกับ user_id นี้ก่อน
+	data, _, err := r.client.From("serial_keys").Select("*", "exact", false).Eq("user_id", userIDStr).Execute()
+	if err != nil {
+		r.logger.Errorw("Failed to query serial keys by user_id", "user_id", userID, "error", err)
+		return nil, errors.New("เกิดข้อผิดพลาดในการค้นหารหัสซีเรียลของผู้ใช้")
+	}
+
+	var keys []domain.SerialKey
+	if err := json.Unmarshal(data, &keys); err != nil {
+		r.logger.Errorw("Failed to parse serial keys for user", "user_id", userID, "error", err)
+		return nil, errors.New("เกิดข้อผิดพลาดในการแปลงข้อมูลรหัสซีเรียลของผู้ใช้")
+	}
+
+	if len(keys) == 0 {
+		r.logger.Infow("No serial keys bound to user", "user_id", userID)
+		return nil, nil
+	}
+
+	// 2. อัปเดตสถานะ Serial Key ทั้งหมดที่ผูกกับ user_id ให้กลับเป็นยังไม่ถูกใช้งาน (is_used = false, user_id = nil)
+	_, _, err = r.client.From("serial_keys").Update(map[string]interface{}{
+		"is_used": false,
+		"user_id": nil,
+	}, "", "").Eq("user_id", userIDStr).Execute()
+	if err != nil {
+		r.logger.Errorw("Failed to revoke serial keys for user", "user_id", userID, "error", err)
+		return nil, errors.New("ไม่สามารถถอนสิทธิ์การใช้งานรหัสซีเรียลได้")
+	}
+
+	r.logger.Infow("Successfully revoked serial keys for user", "user_id", userID, "count", len(keys))
+	return keys, nil
 }
 
 func (r *authRepository) GetAllSerialKeys() ([]map[string]interface{}, error) {

@@ -151,3 +151,75 @@ func TestAuthMiddleware_RequireAuth(t *testing.T) {
 		}
 	})
 }
+
+func TestAuthMiddleware_RequireAdminKey(t *testing.T) {
+	log := zap.NewNop().Sugar()
+	mw := NewAuthMiddleware(nil, log)
+	adminKey := "super-secret-admin-key"
+
+	t.Run("unconfigured adminKey returns 500", func(t *testing.T) {
+		req := httptest.NewRequest(http.MethodPost, "/api/v1/auth/revoke-user", nil)
+		rr := httptest.NewRecorder()
+
+		mw.RequireAdminKey("", func(w http.ResponseWriter, r *http.Request) {})(rr, req)
+
+		if rr.Code != http.StatusInternalServerError {
+			t.Errorf("expected 500, got %d", rr.Code)
+		}
+	})
+
+	t.Run("missing header returns 401", func(t *testing.T) {
+		req := httptest.NewRequest(http.MethodPost, "/api/v1/auth/revoke-user", nil)
+		rr := httptest.NewRecorder()
+
+		mw.RequireAdminKey(adminKey, func(w http.ResponseWriter, r *http.Request) {})(rr, req)
+
+		if rr.Code != http.StatusUnauthorized {
+			t.Errorf("expected 401, got %d", rr.Code)
+		}
+	})
+
+	t.Run("wrong key returns 403", func(t *testing.T) {
+		req := httptest.NewRequest(http.MethodPost, "/api/v1/auth/revoke-user", nil)
+		req.Header.Set("X-Admin-Key", "wrong-key")
+		rr := httptest.NewRecorder()
+
+		mw.RequireAdminKey(adminKey, func(w http.ResponseWriter, r *http.Request) {})(rr, req)
+
+		if rr.Code != http.StatusForbidden {
+			t.Errorf("expected 403, got %d", rr.Code)
+		}
+	})
+
+	t.Run("valid X-Admin-Key succeeds", func(t *testing.T) {
+		req := httptest.NewRequest(http.MethodPost, "/api/v1/auth/revoke-user", nil)
+		req.Header.Set("X-Admin-Key", adminKey)
+		rr := httptest.NewRecorder()
+
+		called := false
+		mw.RequireAdminKey(adminKey, func(w http.ResponseWriter, r *http.Request) {
+			called = true
+			w.WriteHeader(http.StatusOK)
+		})(rr, req)
+
+		if !called || rr.Code != http.StatusOK {
+			t.Errorf("expected handler called and 200 OK, got called=%v code=%d", called, rr.Code)
+		}
+	})
+
+	t.Run("valid Authorization Bearer succeeds", func(t *testing.T) {
+		req := httptest.NewRequest(http.MethodPost, "/api/v1/auth/revoke-user", nil)
+		req.Header.Set("Authorization", "Bearer "+adminKey)
+		rr := httptest.NewRecorder()
+
+		called := false
+		mw.RequireAdminKey(adminKey, func(w http.ResponseWriter, r *http.Request) {
+			called = true
+			w.WriteHeader(http.StatusOK)
+		})(rr, req)
+
+		if !called || rr.Code != http.StatusOK {
+			t.Errorf("expected handler called and 200 OK, got called=%v code=%d", called, rr.Code)
+		}
+	})
+}

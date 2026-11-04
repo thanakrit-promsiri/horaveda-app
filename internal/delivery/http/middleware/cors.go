@@ -11,7 +11,7 @@ func CORSMiddleware(allowedOrigin string) func(http.Handler) http.Handler {
 			// กำหนดค่า Header พื้นฐานสำหรับ CORS โดยใช้ค่าที่ส่งมาจาก Config
 			w.Header().Set("Access-Control-Allow-Origin", allowedOrigin)
 			w.Header().Set("Access-Control-Allow-Credentials", "true")
-			w.Header().Set("Access-Control-Allow-Headers", "Content-Type, Authorization")
+			w.Header().Set("Access-Control-Allow-Headers", "Content-Type, Authorization, X-Admin-Key")
 			w.Header().Set("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS")
 
 			// จัดการ Preflight Request (OPTIONS)

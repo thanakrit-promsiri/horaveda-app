@@ -8,3 +8,6 @@
 {"level":"info","ts":"2026-10-29T10:25:52.703+0700","caller":"logger/logger_test.go:12","msg":"test logger initialized"}
 {"level":"info","ts":"2026-10-29T10:25:54.672+0700","caller":"logger/logger_test.go:12","msg":"test logger initialized"}
 {"level":"info","ts":"2026-10-29T10:39:55.353+0700","caller":"logger/logger_test.go:12","msg":"test logger initialized"}
+{"level":"info","ts":"2026-11-03T15:49:32.530+0700","caller":"logger/logger_test.go:12","msg":"test logger initialized"}
+{"level":"info","ts":"2026-11-04T13:55:19.200+0700","caller":"logger/logger_test.go:12","msg":"test logger initialized"}
+{"level":"info","ts":"2026-11-04T13:56:54.774+0700","caller":"logger/logger_test.go:12","msg":"test logger initialized"}
