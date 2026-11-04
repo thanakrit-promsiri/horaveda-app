@@ -58,3 +58,18 @@
 {"level":"info","ts":"2026-11-04T13:56:52.217+0700","caller":"config/config.go:44","msg":"กำลังเชื่อมต่อ Supabase","key_type":"Publishable/Anon Key"}
 {"level":"info","ts":"2026-11-04T13:56:52.217+0700","caller":"config/config.go:50","msg":"Connected to Supabase successfully!"}
 {"level":"warn","ts":"2026-11-04T13:56:52.217+0700","caller":"config/config.go:66","msg":"ไม่ได้กำหนดค่า JWT_SECRET ใน .env ระบบจะใช้ค่าเริ่มต้นชั่วคราว (ไม่แนะนำสำหรับ Production)"}
+{"level":"info","ts":"2026-11-04T14:26:02.302+0700","caller":"config/config.go:44","msg":"กำลังเชื่อมต่อ Supabase","key_type":"Service Role Key (Bypass RLS)"}
+{"level":"info","ts":"2026-11-04T14:26:02.306+0700","caller":"config/config.go:50","msg":"Connected to Supabase successfully!"}
+{"level":"info","ts":"2026-11-04T14:26:02.307+0700","caller":"config/config.go:44","msg":"กำลังเชื่อมต่อ Supabase","key_type":"Publishable/Anon Key"}
+{"level":"info","ts":"2026-11-04T14:26:02.308+0700","caller":"config/config.go:50","msg":"Connected to Supabase successfully!"}
+{"level":"warn","ts":"2026-11-04T14:26:02.309+0700","caller":"config/config.go:66","msg":"ไม่ได้กำหนดค่า JWT_SECRET ใน .env ระบบจะใช้ค่าเริ่มต้นชั่วคราว (ไม่แนะนำสำหรับ Production)"}
+{"level":"info","ts":"2026-11-04T14:26:04.534+0700","caller":"config/config.go:44","msg":"กำลังเชื่อมต่อ Supabase","key_type":"Service Role Key (Bypass RLS)"}
+{"level":"info","ts":"2026-11-04T14:26:04.543+0700","caller":"config/config.go:50","msg":"Connected to Supabase successfully!"}
+{"level":"info","ts":"2026-11-04T14:26:04.544+0700","caller":"config/config.go:44","msg":"กำลังเชื่อมต่อ Supabase","key_type":"Publishable/Anon Key"}
+{"level":"info","ts":"2026-11-04T14:26:04.546+0700","caller":"config/config.go:50","msg":"Connected to Supabase successfully!"}
+{"level":"warn","ts":"2026-11-04T14:26:04.546+0700","caller":"config/config.go:66","msg":"ไม่ได้กำหนดค่า JWT_SECRET ใน .env ระบบจะใช้ค่าเริ่มต้นชั่วคราว (ไม่แนะนำสำหรับ Production)"}
+{"level":"info","ts":"2026-11-04T14:26:07.022+0700","caller":"config/config.go:44","msg":"กำลังเชื่อมต่อ Supabase","key_type":"Service Role Key (Bypass RLS)"}
+{"level":"info","ts":"2026-11-04T14:26:07.027+0700","caller":"config/config.go:50","msg":"Connected to Supabase successfully!"}
+{"level":"info","ts":"2026-11-04T14:26:07.028+0700","caller":"config/config.go:44","msg":"กำลังเชื่อมต่อ Supabase","key_type":"Publishable/Anon Key"}
+{"level":"info","ts":"2026-11-04T14:26:07.031+0700","caller":"config/config.go:50","msg":"Connected to Supabase successfully!"}
+{"level":"warn","ts":"2026-11-04T14:26:07.032+0700","caller":"config/config.go:66","msg":"ไม่ได้กำหนดค่า JWT_SECRET ใน .env ระบบจะใช้ค่าเริ่มต้นชั่วคราว (ไม่แนะนำสำหรับ Production)"}
