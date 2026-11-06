@@ -38,3 +38,4 @@ go.work.sum
 # .vscode/
 /logs/app.log
 /horaveda.postman_collection.json
+/anythingllm.postman_collection.json

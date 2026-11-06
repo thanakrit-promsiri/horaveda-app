@@ -223,7 +223,7 @@ sequenceDiagram
     participant Lahiri as lahiri-api (Sidereal Engine)
     participant GoSwisseph as go-swisseph (CGO Wrapper)
     participant CSwisseph as swisseph (C/C++ Core & Ephe Files)
-    participant LLM as One API / External LLM
+    participant ALLM as AnythingLLM (Developer API :3001)
 
     %% 1. เข้าใช้งานหน้าเว็บและลงทะเบียน Serial Key
     User->>Nginx: ขอเข้าใช้งานเว็บ Horaveda
@@ -256,14 +256,19 @@ sequenceDiagram
     GoSwisseph-->>Lahiri: ส่งคืนค่าองศาดาวที่ปรับเทียบแล้ว
     Lahiri-->>API: ส่งคืนผลลัพธ์ตำแหน่งดาวและลัคนาที่สมบูรณ์
 
-    %% 4. แปลผลด้วย AI และบันทึกผลลัพธ์
-    API->>LLM: ส่งข้อมูลดวงดาว (Chart Data) + Prompt ไปยัง One API
-    LLM-->>API: ส่งคืนคำพยากรณ์จาก AI
+    %% 4. แปลผลด้วย AI (AnythingLLM: 1 User : 1 Workspace : 1 Thread)
+    Note over API,ALLM: ประกอบ Prompt พยากรณ์พื้นดวงตามหลักโหราศาสตร์พระเวท (Vedic Jyotish)
+    API->>ALLM: GET /api/v1/workspace/{username} (ตรวจสอบ Workspace ประจำตัว)
+    alt เป็นผู้ใช้ใหม่ (ยังไม่มี Workspace)
+        API->>ALLM: POST /api/v1/workspace/new (สร้าง Workspace)
+    end
+    alt ยังไม่มี Thread ประจำตัว
+        API->>ALLM: POST /api/v1/workspace/{slug}/thread/new (สร้าง Thread: {username}-hora)
+    end
+    API->>ALLM: POST /api/v1/workspace/{slug}/thread/{threadSlug}/chat (ส่ง Prompt พยากรณ์)
+    ALLM-->>API: ส่งคืนคำทำนายพื้นดวงชะตา (prediction)
 
-    API->>DB: บันทึกข้อมูลดวงชะตาและผลพยากรณ์ผูกกับ User ลง Supabase
-    DB-->>API: บันทึกสำเร็จ
-
-    API-->>Nginx: ส่งข้อมูลผลลัพธ์ทั้งหมดกลับ (JSON Response)
+    API-->>Nginx: ส่งข้อมูลผลลัพธ์ทั้งหมดกลับ {status, prompt, prediction, workspace_slug, thread_slug}
     Nginx-->>Web: ส่งข้อมูลกลับไปยัง Frontend
     Web-->>User: แสดงผลตารางผูกดวงและคำพยากรณ์บนหน้าจอ
 ```

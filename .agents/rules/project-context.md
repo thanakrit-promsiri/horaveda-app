@@ -26,6 +26,9 @@ description: โครงสร้างโปรเจกต์ สถาปั
   - `COOKIE_SECURE`: ตั้งค่า `Secure` flag ของ Cookie (`true` หรือเมื่อ `APP_ENV=production`)
   - `ADMIN_API_KEY`: คีย์สำหรับเรียกใช้ Admin Endpoints (ผ่าน Header `X-Admin-Key` หรือ `Authorization: Bearer`)
   - `HORA_API_URL`: URL ของบริการคำนวณพื้นดวงชะตา Lahiri (Default: `http://localhost:8083/api/v1/hora/prompt`)
+  - `ANYTHINGLLM_API_URL`: URL ของ AnythingLLM Developer API (Default: `http://localhost:3001/api/v1`)
+  - `ANYTHINGLLM_API_KEY`: API Key ของ AnythingLLM
+  - `ANYTHINGLLM_TIMEOUT_SECONDS`: เวลารอผลลัพธ์คำทำนายจาก AnythingLLM สูงสุด (Default: `120`)
 
 ---
 
@@ -47,7 +50,10 @@ horaveda-app/
 │   │   ├── auth_service.go                       # AuthService: RegisterWithSerial (พร้อม Saga Rollback), RevokeUserAndSerial, VerifyToken, GetAllKeys
 │   │   ├── auth_service_test.go
 │   │   ├── hora_service.go                       # HoraService: GetHoraPrompt (ยิง POST ไปยัง Lahiri Prompt API :8083)
-│   │   └── hora_service_test.go
+│   │   ├── hora_service_test.go
+│   │   ├── anythingllm_service.go                # AnythingLLMService: จัดการ Workspace & Thread (1 User : 1 Workspace : 1 Thread) และส่ง Chat
+│   │   ├── anythingllm_service_test.go
+│   │   └── vedic_prompt.go                       # BuildVedicPredictionPrompt: ประกอบ Prompt พยากรณ์ตามหลักโหราศาสตร์พระเวท (Vedic Jyotish)
 │   └── delivery/http/
 │       ├── router.go                             # NewRouter: ลงทะเบียน Routes ทั้งหมดพร้อม Request Logging
 │       ├── router_test.go
@@ -83,7 +89,7 @@ horaveda-app/
 | `POST` | `/api/v1/auth/logout` | Public | `HandleLogout` | ล้าง Cookie `auth_token` (`MaxAge: -1`) |
 | `GET` | `/api/v1/auth/verify` | `RequireAuth` | `HandleVerifyAuth` | ตรวจสอบ JWT Token และคืนค่า `data: {"username": "..."}` |
 | `POST`, `DELETE` | `/api/v1/auth/revoke-user` | `RequireAdminKey` | `HandleRevokeUser` | ถอนสิทธิ์ `serial_keys` (`is_used=false, user_id=nil`), ลบ `public.users` และลบ `auth.users` บน Supabase |
-| `POST` | `/api/v1/hora/predict` (และ `/api/v1/hora/prompt`) | `RequireAuth` | `HandleHoraPredict` | รับ `{year, month, day, hour_thai, latitude, longitude}` ยิงต่อไปยัง `HORA_API_URL` (`time_zone: 7.0`, `house_system: "W"`) และคืนค่า `prompt` |
+| `POST` | `/api/v1/hora/predict` (และ `/api/v1/hora/prompt`) | `RequireAuth` | `HandleHoraPredict` | รับ `{username, year, month, day, hour_thai, latitude, longitude}` ยิงต่อไปยัง `HORA_API_URL` คำนวณพิกัดดวงดาว แล้วส่งเข้า AnythingLLM (1 User : 1 Workspace : 1 Thread) คืนค่า `{status, prompt, prediction, workspace_slug, thread_slug}` |
 
 ---
 

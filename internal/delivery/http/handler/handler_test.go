@@ -3,9 +3,11 @@ package handler
 import (
 	"bytes"
 	"context"
+	"encoding/json"
 	"errors"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 
 	"horaveda-app/internal/config"
@@ -423,6 +425,134 @@ func TestHandleHoraPredict(t *testing.T) {
 
 		if rr.Code != http.StatusInternalServerError {
 			t.Errorf("expected 500, got %d", rr.Code)
+		}
+	})
+
+	// mockHoraAndLLMClient จำลองทั้ง Lahiri Prompt API (:8083) และ AnythingLLM API (:3001) ผ่าน RoundTripper
+	mockHoraAndLLMClient := func(chatCalls *int) *http.Client {
+		return &http.Client{
+			Transport: roundTripFunc(func(req *http.Request) (*http.Response, error) {
+				rr := httptest.NewRecorder()
+				rr.Header().Set("Content-Type", "application/json")
+				path := req.URL.Path
+				switch {
+				case path == "/api/v1/hora/prompt":
+					_, _ = rr.Write([]byte(`{"status":"success","prompt":"[Vedic Sidereal(Lahiri)/WholeSign]"}`))
+				case req.Method == http.MethodGet && path == "/api/v1/workspace/testuser01":
+					_, _ = rr.Write([]byte(`{"workspace":[{"id":1,"slug":"testuser01","threads":[{"slug":"testuser01-hora"}]}]}`))
+				case strings.HasSuffix(path, "/chat"):
+					*chatCalls++
+					_, _ = rr.Write([]byte(`{"id":"1","type":"textResponse","textResponse":"ลัคนาสถิตราศีกุมภ์","close":true,"error":null}`))
+				default:
+					rr.WriteHeader(http.StatusNotFound)
+				}
+				return rr.Result(), nil
+			}),
+		}
+	}
+
+	t.Run("success with AnythingLLM returns prediction", func(t *testing.T) {
+		chatCalls := 0
+		client := mockHoraAndLLMClient(&chatCalls)
+		h := setupHandler(&stubAuthRepo{})
+		h.HoraService = service.NewHoraService("http://localhost:8083/api/v1/hora/prompt", h.Logger, client)
+		h.AnythingLLMService = service.NewAnythingLLMService("http://localhost:3001/api/v1", "llm-key", 0, h.Logger, client)
+
+		body := `{"username": "testuser01", "year": 1988, "month": 12, "day": 23, "hour_thai": 10.35, "latitude": 13.7563, "longitude": 100.5018}`
+		req := httptest.NewRequest(http.MethodPost, "/api/v1/hora/predict", bytes.NewBufferString(body))
+		ctx := context.WithValue(req.Context(), "userClaims", map[string]interface{}{"username": "testuser01"})
+		rr := httptest.NewRecorder()
+
+		h.HandleHoraPredict(rr, req.WithContext(ctx))
+
+		if rr.Code != http.StatusOK {
+			t.Fatalf("expected 200, got %d: %s", rr.Code, rr.Body.String())
+		}
+		var res struct {
+			Data domain.HoraPredictResponse `json:"data"`
+		}
+		if err := json.Unmarshal(rr.Body.Bytes(), &res); err != nil {
+			t.Fatalf("invalid JSON response: %v", err)
+		}
+		if res.Data.Prediction != "ลัคนาสถิตราศีกุมภ์" || res.Data.WorkspaceSlug != "testuser01" || res.Data.ThreadSlug != "testuser01-hora" || res.Data.Prompt == "" {
+			t.Errorf("unexpected response data: %+v", res.Data)
+		}
+		if chatCalls != 1 {
+			t.Errorf("expected 1 chat call, got %d", chatCalls)
+		}
+	})
+
+	t.Run("username mismatch with token returns 403", func(t *testing.T) {
+		h := setupHandler(&stubAuthRepo{})
+		body := `{"username": "someoneelse", "year": 1988, "month": 12, "day": 23, "hour_thai": 10.35, "latitude": 13.7563, "longitude": 100.5018}`
+		req := httptest.NewRequest(http.MethodPost, "/api/v1/hora/predict", bytes.NewBufferString(body))
+		ctx := context.WithValue(req.Context(), "userClaims", map[string]interface{}{"username": "testuser01"})
+		rr := httptest.NewRecorder()
+
+		h.HandleHoraPredict(rr, req.WithContext(ctx))
+
+		if rr.Code != http.StatusForbidden {
+			t.Errorf("expected 403, got %d", rr.Code)
+		}
+	})
+
+	t.Run("invalid username format returns 400", func(t *testing.T) {
+		h := setupHandler(&stubAuthRepo{})
+		body := `{"username": "bad user!", "year": 1988, "month": 12, "day": 23, "hour_thai": 10.35, "latitude": 13.7563, "longitude": 100.5018}`
+		req := httptest.NewRequest(http.MethodPost, "/api/v1/hora/predict", bytes.NewBufferString(body))
+		rr := httptest.NewRecorder()
+
+		h.HandleHoraPredict(rr, req)
+
+		if rr.Code != http.StatusBadRequest {
+			t.Errorf("expected 400, got %d", rr.Code)
+		}
+	})
+
+	t.Run("AnythingLLM failure falls back gracefully to prompt with 200 OK and warning", func(t *testing.T) {
+		client := &http.Client{
+			Transport: roundTripFunc(func(req *http.Request) (*http.Response, error) {
+				rr := httptest.NewRecorder()
+				if req.URL.Path == "/api/v1/hora/prompt" {
+					_, _ = rr.Write([]byte(`{"status":"success","prompt":"[Vedic Sidereal(Lahiri)/WholeSign]"}`))
+					return rr.Result(), nil
+				}
+				return nil, errors.New("connection refused")
+			}),
+		}
+		h := setupHandler(&stubAuthRepo{})
+		h.HoraService = service.NewHoraService("http://localhost:8083/api/v1/hora/prompt", h.Logger, client)
+		h.AnythingLLMService = service.NewAnythingLLMService("http://localhost:3001/api/v1", "llm-key", 0, h.Logger, client)
+
+		body := `{"year": 1988, "month": 12, "day": 23, "hour_thai": 10.35, "latitude": 13.7563, "longitude": 100.5018}`
+		req := httptest.NewRequest(http.MethodPost, "/api/v1/hora/predict", bytes.NewBufferString(body))
+		ctx := context.WithValue(req.Context(), "userClaims", map[string]interface{}{"username": "testuser01"})
+		rr := httptest.NewRecorder()
+
+		h.HandleHoraPredict(rr, req.WithContext(ctx))
+
+		if rr.Code != http.StatusOK {
+			t.Fatalf("expected 200 OK on graceful fallback, got %d", rr.Code)
+		}
+		var res struct {
+			Success bool                      `json:"success"`
+			Message string                    `json:"message"`
+			Data    domain.HoraPredictResponse `json:"data"`
+		}
+		if err := json.Unmarshal(rr.Body.Bytes(), &res); err != nil {
+			t.Fatalf("invalid JSON response: %v", err)
+		}
+		if !res.Success {
+			t.Error("expected success to be true on fallback")
+		}
+		if res.Data.Prompt != "[Vedic Sidereal(Lahiri)/WholeSign]" {
+			t.Errorf("expected prompt to be preserved, got %q", res.Data.Prompt)
+		}
+		if res.Data.Prediction != "" {
+			t.Errorf("expected empty prediction on LLM failure, got %q", res.Data.Prediction)
+		}
+		if res.Data.Warning == "" {
+			t.Error("expected non-empty warning message explaining AI unavailability")
 		}
 	})
 }

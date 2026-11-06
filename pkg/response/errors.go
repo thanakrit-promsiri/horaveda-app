@@ -45,6 +45,23 @@ func NewNotFoundError(message string, err error) *AppError {
 	}
 }
 
+func NewForbiddenError(message string, err error) *AppError {
+	return &AppError{
+		Code:    http.StatusForbidden,
+		Message: message,
+		Err:     err,
+	}
+}
+
+// NewBadGatewayError ใช้เมื่อบริการภายนอก (เช่น AnythingLLM) ตอบกลับผิดพลาดหรือเชื่อมต่อไม่ได้
+func NewBadGatewayError(message string, err error) *AppError {
+	return &AppError{
+		Code:    http.StatusBadGateway,
+		Message: message,
+		Err:     err,
+	}
+}
+
 func NewInternalServerError(message string, err error) *AppError {
 	return &AppError{
 		Code:    http.StatusInternalServerError,

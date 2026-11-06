@@ -1,0 +1,56 @@
+### AnythingLLM Developer API Testing Reference
+# Base URL: http://localhost:3001/api/v1
+# Header: Authorization: Bearer SKQ80Y1-E6AMVCW-JSFSM5M-CY856Q4
+
+--------------------------------------------------
+### 1. ตรวจสอบการยืนยันตัวตน (Check Auth)
+curl -X GET "http://localhost:3001/api/v1/auth" \
+  -H "Authorization: Bearer SKQ80Y1-E6AMVCW-JSFSM5M-CY856Q4" \
+  -H "Accept: application/json"
+
+# Response คาดหวัง:
+# {"authenticated": true}
+
+--------------------------------------------------
+### 2. ดูรายการ Workspaces ทั้งหมด
+curl -X GET "http://localhost:3001/api/v1/workspaces" \
+  -H "Authorization: Bearer SKQ80Y1-E6AMVCW-JSFSM5M-CY856Q4" \
+  -H "Accept: application/json"
+
+--------------------------------------------------
+### 3. ตรวจสอบ Workspace ประจำตัวผู้ใช้ (testuser01)
+curl -X GET "http://localhost:3001/api/v1/workspace/testuser01" \
+  -H "Authorization: Bearer SKQ80Y1-E6AMVCW-JSFSM5M-CY856Q4" \
+  -H "Accept: application/json"
+
+--------------------------------------------------
+### 4. สร้าง Workspace ใหม่ (หากยังไม่มี) พร้อมตั้ง System Prompt โหราศาสตร์พระเวท
+curl -X POST "http://localhost:3001/api/v1/workspace/new" \
+  -H "Authorization: Bearer SKQ80Y1-E6AMVCW-JSFSM5M-CY856Q4" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "name": "testuser01",
+    "openAiPrompt": "คุณคือโหราจารย์ผู้เชี่ยวชาญโหราศาสตร์พระเวท (Vedic Jyotish / โหราศาสตร์ภารตะ) ระบบนิรายนะ อายนางศ์ Lahiri และระบบภพแบบ Whole Sign",
+    "chatMode": "chat"
+  }'
+
+--------------------------------------------------
+### 5. สร้าง Thread ประจำตัวผู้ใช้
+curl -X POST "http://localhost:3001/api/v1/workspace/testuser01/thread/new" \
+  -H "Authorization: Bearer SKQ80Y1-E6AMVCW-JSFSM5M-CY856Q4" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "name": "พื้นดวงชะตา testuser01",
+    "slug": "testuser01-hora"
+  }'
+
+--------------------------------------------------
+### 6. ส่งข้อความคำนวณพื้นดวงชะตาเข้าสู่ Thread
+curl -X POST "http://localhost:3001/api/v1/workspace/testuser01/thread/testuser01-hora/chat" \
+  -H "Authorization: Bearer SKQ80Y1-E6AMVCW-JSFSM5M-CY856Q4" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "message": "จงพยากรณ์พื้นดวงชะตากำเนิดตามหลักโหราศาสตร์พระเวท จากข้อมูลนี้: ASC:Aq 03°39'\''23.46\" ...",
+    "mode": "chat",
+    "reset": false
+  }'

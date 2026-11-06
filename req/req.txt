@@ -38,8 +38,10 @@ X-Admin-Key: hv_admin_8f92e4c7a1b3d6e0954f2a8c1d7e3b69
 ### 3. ทำนายพื้นดวงชะตา (ต้องมี Token จากการลงทะเบียนผ่าน Serial Key)
 POST http://localhost:8082/api/v1/hora/predict
 Cookie: auth_token=<JWT_TOKEN> (หรือ Header Authorization: Bearer <JWT_TOKEN>)
+# username: ใช้เป็น Workspace บน AnythingLLM (ไม่บังคับ หากไม่ส่งจะใช้ username จาก JWT และต้องตรงกับ JWT)
 
 {
+  "username": "testuser01",
   "year": 1988,
   "month": 12,
   "day": 23,
@@ -50,9 +52,29 @@ Cookie: auth_token=<JWT_TOKEN> (หรือ Header Authorization: Bearer <JWT_T
 
 {
   "success": true,
-  "message": "คำนวณข้อมูลพื้นดวงชะตาสำเร็จ",
+  "message": "พยากรณ์พื้นดวงชะตาสำเร็จ",
   "data": {
     "status": "success",
-    "prompt": "[Vedic Sidereal(Lahiri)/WholeSign]\nASC:Aq 03°39'23.46\"|D9:Sc|Nak:Dhanishta(4,Ma) | MC:Sc 10°54'11.30\"(H10) DSC:Le 03°39'23.46\"(H7) IC:Ta 10°54'11.30\"(H4)\nPlanets(D1:Sign,DMS,Dig|House|Nak(Pada,Lord)|D9:Sign,Dig):\nSu:Sg 07°49'03.39\"(Fri)|H11|Mula(3,Ke)|D9:Ge(Neu)\nMo:Ge 06°43'28.61\"(Fri)|H5|Ardra(1,Ra)|D9:Sg(Neu)\nMe[C]:Sg 19°57'00.14\"(Neu)|H11|P.Ashadha(2,Ve)|D9:Vi(Exa)\nVe:Sc 13°01'14.65\"(Neu)|H10|Anuradha(3,Sa)|D9:Li(Own)\nMa:Pi 22°07'36.80\"(Fri)|H2|Revati(2,Me)|D9:Cp(Exa)\nJu[R]:Ta 03°43'04.17\"(Ene)|H4|Krittika(3,Su)|D9:Aq(Neu)\nSa[C]:Sg 10°50'26.95\"(Neu)|H11|Mula(4,Ke)|D9:Cn(Ene)\nRa[R,Varg]:Aq 14°33'08.59\"(Own)|H1|Shatabhisha(3,Ra)|D9:Aq(Own)\nKe[Varg]:Le 14°33'08.59\"(Neu)|H7|P.Phalguni(1,Ve)|D9:Le(Neu)\nLords(H:Sign,Lord->InH): 1:Aq,Sa->H11 2:Pi,Ju->H4 3:Ar,Ma->H2 4:Ta,Ve->H10 5:Ge,Me->H11 6:Cn,Mo->H5 7:Le,Su->H11 8:Vi,Me->H11 9:Li,Ve->H10 10:Sc,Ma->H2 11:Sg,Ju->H4 12:Cp,Sa->H11\nConj: H1(ASC+Ra) H11(Su+Me+Sa)\nDasha(Moon:Ardra,Bal:Ra 17y11m11d): Now MD:Sa(2022-11-25..2041-11-24)/AD:Me(2025-11-27..2028-08-06)"
+    "prompt": "[Vedic Sidereal(Lahiri)/WholeSign]\nASC:Aq 03°39'23.46\"|D9:Sc|Nak:Dhanishta(4,Ma) | MC:Sc 10°54'11.30\"(H10) DSC:Le 03°39'23.46\"(H7) IC:Ta 10°54'11.30\"(H4)\nPlanets(D1:Sign,DMS,Dig|House|Nak(Pada,Lord)|D9:Sign,Dig):\nSu:Sg 07°49'03.39\"(Fri)|H11|Mula(3,Ke)|D9:Ge(Neu)\nMo:Ge 06°43'28.61\"(Fri)|H5|Ardra(1,Ra)|D9:Sg(Neu)\nMe[C]:Sg 19°57'00.14\"(Neu)|H11|P.Ashadha(2,Ve)|D9:Vi(Exa)\nVe:Sc 13°01'14.65\"(Neu)|H10|Anuradha(3,Sa)|D9:Li(Own)\nMa:Pi 22°07'36.80\"(Fri)|H2|Revati(2,Me)|D9:Cp(Exa)\nJu[R]:Ta 03°43'04.17\"(Ene)|H4|Krittika(3,Su)|D9:Aq(Neu)\nSa[C]:Sg 10°50'26.95\"(Neu)|H11|Mula(4,Ke)|D9:Cn(Ene)\nRa[R,Varg]:Aq 14°33'08.59\"(Own)|H1|Shatabhisha(3,Ra)|D9:Aq(Own)\nKe[Varg]:Le 14°33'08.59\"(Neu)|H7|P.Phalguni(1,Ve)|D9:Le(Neu)\nLords(H:Sign,Lord->InH): 1:Aq,Sa->H11 2:Pi,Ju->H4 3:Ar,Ma->H2 4:Ta,Ve->H10 5:Ge,Me->H11 6:Cn,Mo->H5 7:Le,Su->H11 8:Vi,Me->H11 9:Li,Ve->H10 10:Sc,Ma->H2 11:Sg,Ju->H4 12:Cp,Sa->H11\nConj: H1(ASC+Ra) H11(Su+Me+Sa)\nDasha(Moon:Ardra,Bal:Ra 17y11m11d): Now MD:Sa(2022-11-25..2041-11-24)/AD:Me(2025-11-27..2028-08-06)",
+    "prediction": "## 1. สภาพลัคนา ตนุลัคน์ และนักษัตร\nลัคนาสถิตราศีกุมภ์ 03°39' ...",
+    "workspace_slug": "testuser01",
+    "thread_slug": "testuser01-hora"
+  }
+}
+
+
+--------------------------------------------------
+
+### 4. ตัวอย่าง Response กรณี AnythingLLM ไม่พร้อมใช้งาน (Graceful Fallback - HTTP 200 OK)
+# ระบบยังคงคำนวณและส่งคืนพิกัดดวงดาว (prompt) ให้ใช้งานได้ตามปกติ โดยไม่ทำให้หน้าจอพังหรือติด Cloudflare 502
+
+{
+  "success": true,
+  "message": "คำนวณข้อมูลพื้นดวงชะตาสำเร็จ (ระบบทำนาย AI ไม่พร้อมใช้งานชั่วคราว)",
+  "data": {
+    "status": "success",
+    "prompt": "[Vedic Sidereal(Lahiri)/WholeSign]\nASC:Aq 03°39'23.46\"|D9:Sc|Nak:Dhanishta(4,Ma) ...",
+    "prediction": "",
+    "warning": "ไม่สามารถเชื่อมต่อบริการทำนาย AI ได้ในขณะนี้ ระบบได้ส่งคืนข้อมูลพื้นดวงชะตาสำหรับการผูกดวงแล้ว"
   }
 }

@@ -42,11 +42,16 @@ func main() {
 	corsHandler := middleware.CORSMiddleware(cfg.CORSOrigin)(mux)
 
 	// กำหนดค่า HTTP Server พร้อม Timeout มาตรฐานเพื่อป้องกัน Slowloris Attack
+	// WriteTimeout ต้องนานกว่าเวลารอ AnythingLLM (+ เวลาคำนวณพื้นดวง) ไม่เช่นนั้นคำตอบจะถูกตัดกลางทาง
+	writeTimeout := 15 * time.Second
+	if llmWrite := cfg.AnythingLLMTimeout + 30*time.Second; llmWrite > writeTimeout {
+		writeTimeout = llmWrite
+	}
 	srv := &http.Server{
 		Addr:         ":" + cfg.Port,
 		Handler:      corsHandler,
 		ReadTimeout:  15 * time.Second,
-		WriteTimeout: 15 * time.Second,
+		WriteTimeout: writeTimeout,
 		IdleTimeout:  60 * time.Second,
 	}
 
@@ -62,6 +67,24 @@ func main() {
 		if err := srv.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
 			cfg.Logger.Errorw("Server terminated with error", "error", err)
 			cfg.Logger.Fatal(err)
+		}
+	}()
+
+	// ตรวจสอบสถานะการเชื่อมต่อ AnythingLLM เมื่อเริ่มต้นระบบ (แบบ Non-blocking ใน Background)
+	go func() {
+		time.Sleep(500 * time.Millisecond)
+		if authHandler.AnythingLLMService != nil && authHandler.AnythingLLMService.IsEnabled() {
+			probeCtx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+			defer cancel()
+			if err := authHandler.AnythingLLMService.Ping(probeCtx); err != nil {
+				cfg.Logger.Warnw("AnythingLLM is unreachable at startup (AI predictions will fall back to prompt-only until service is up)",
+					"url", authHandler.AnythingLLMService.BaseURL,
+					"error", err,
+					"troubleshooting", "1) ตรวจสอบว่า AnythingLLM เปิดทำงานอยู่หรือไม่ 2) ตรวจสอบว่าเปิดโหมด Developer API และใช้พอร์ต 3001 หรือไม่",
+				)
+			} else {
+				cfg.Logger.Infow("AnythingLLM connection verified successfully", "url", authHandler.AnythingLLMService.BaseURL)
+			}
 		}
 	}()
 

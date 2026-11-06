@@ -28,6 +28,8 @@ type User struct {
 }
 
 type HoraPredictRequest struct {
+	// Username ใช้เป็นชื่ออ้างอิง Workspace บน AnythingLLM (หากไม่ส่งมาจะใช้ username จาก JWT แทน)
+	Username  string  `json:"username,omitempty"`
 	Year      int     `json:"year"`
 	Month     int     `json:"month"`
 	Day       int     `json:"day"`
@@ -54,4 +56,21 @@ type HoraPromptRequest struct {
 type HoraPromptResponse struct {
 	Status string `json:"status"`
 	Prompt string `json:"prompt"`
+}
+
+// HoraPredictResponse ผลลัพธ์ที่ส่งกลับไปยัง Client ของ /api/v1/hora/predict
+type HoraPredictResponse struct {
+	Status        string `json:"status"`
+	Prompt        string `json:"prompt"`                   // พิกัดดวงดาวจาก Lahiri Prompt API
+	Prediction    string `json:"prediction"`               // คำทำนายพื้นดวงชะตาจาก AnythingLLM
+	WorkspaceSlug string `json:"workspace_slug,omitempty"` // Workspace ประจำผู้ใช้บน AnythingLLM
+	ThreadSlug    string `json:"thread_slug,omitempty"`    // Thread ประจำผู้ใช้บน AnythingLLM
+	Warning       string `json:"warning,omitempty"`        // ข้อความแจ้งเตือนกรณีระบบ AI ทำนายไม่พร้อมใช้งาน (Graceful Fallback)
+}
+
+// AnythingLLMPrediction ผลลัพธ์จากการสนทนากับ AnythingLLM (1 User : 1 Workspace : 1 Thread)
+type AnythingLLMPrediction struct {
+	WorkspaceSlug string
+	ThreadSlug    string
+	TextResponse  string
 }

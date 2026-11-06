@@ -2,7 +2,9 @@ package config
 
 import (
 	"os"
+	"strconv"
 	"strings"
+	"time"
 
 	"horaveda-app/pkg/logger"
 
@@ -20,6 +22,10 @@ type Config struct {
 	CookieSecure   bool   // กำหนดค่า Secure ของ Cookie ให้สอดคล้องกันทั้งระบบ
 	AdminAPIKey    string // คีย์สำหรับยืนยันสิทธิ์ผู้ดูแลระบบ (Admin Endpoints)
 	HoraAPIURL     string // URL สำหรับเรียกใช้บริการคำนวณพื้นดวงชะตา (Lahiri Prompt API)
+
+	AnythingLLMAPIURL  string        // URL ของ AnythingLLM Developer API (Default: http://localhost:3001/api/v1)
+	AnythingLLMAPIKey  string        // API Key ของ AnythingLLM (ว่าง = ปิดการพยากรณ์ด้วย AnythingLLM)
+	AnythingLLMTimeout time.Duration // ระยะเวลารอคำตอบจาก AnythingLLM สูงสุด
 }
 
 func LoadConfig() *Config {
@@ -83,6 +89,35 @@ func LoadConfig() *Config {
 		horaAPIURL = "http://localhost:8083/api/v1/hora/prompt"
 	}
 
+	// ดึงค่าการเชื่อมต่อ AnythingLLM จาก .env
+	anythingLLMAPIURL := strings.TrimSpace(os.Getenv("ANYTHINGLLM_API_URL"))
+	if anythingLLMAPIURL == "" {
+		anythingLLMAPIURL = "http://localhost:3001/api/v1"
+	}
+	anythingLLMAPIKey := strings.TrimSpace(os.Getenv("ANYTHINGLLM_API_KEY"))
+	anythingLLMTimeout := 120 * time.Second
+	if raw := strings.TrimSpace(os.Getenv("ANYTHINGLLM_TIMEOUT_SECONDS")); raw != "" {
+		if sec, err := strconv.Atoi(raw); err == nil && sec > 0 {
+			anythingLLMTimeout = time.Duration(sec) * time.Second
+		} else {
+			sugar.Warnw("ค่า ANYTHINGLLM_TIMEOUT_SECONDS ไม่ถูกต้อง ระบบจะใช้ค่าเริ่มต้น 120 วินาที", "value", raw)
+		}
+	}
+
+	if anythingLLMAPIKey == "" {
+		sugar.Warn("ไม่ได้กำหนดค่า ANYTHINGLLM_API_KEY ใน .env ระบบจะคืนเฉพาะพิกัดดวงดาวโดยไม่มีคำทำนายจาก AnythingLLM")
+	} else {
+		maskedKey := "***"
+		if len(anythingLLMAPIKey) > 8 {
+			maskedKey = anythingLLMAPIKey[:4] + "..." + anythingLLMAPIKey[len(anythingLLMAPIKey)-4:]
+		}
+		sugar.Infow("โหลดค่าคอนฟิก AnythingLLM เรียบร้อย",
+			"api_url", anythingLLMAPIURL,
+			"api_key_masked", maskedKey,
+			"timeout_seconds", int(anythingLLMTimeout.Seconds()),
+		)
+	}
+
 	return &Config{
 		SupabaseClient: client,
 		Logger:         sugar,
@@ -92,5 +127,9 @@ func LoadConfig() *Config {
 		CookieSecure:   cookieSecure,
 		AdminAPIKey:    adminAPIKey,
 		HoraAPIURL:     horaAPIURL,
+
+		AnythingLLMAPIURL:  anythingLLMAPIURL,
+		AnythingLLMAPIKey:  anythingLLMAPIKey,
+		AnythingLLMTimeout: anythingLLMTimeout,
 	}
 }

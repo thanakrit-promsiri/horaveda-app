@@ -1,5 +1,24 @@
 # คัดลอกโค้ดตั้งแต่บรรทัด "sequenceDiagram" ด้านล่างนี้ไปวางใน https://mermaid.live/ ได้ทันที
 
+%%{init: {
+  'theme': 'base',
+  'themeVariables': {
+    'primaryColor': '#ffffff',
+    'primaryTextColor': '#0f172a',
+    'primaryBorderColor': '#334155',
+    'lineColor': '#1e293b',
+    'secondaryColor': '#f8fafc',
+    'tertiaryColor': '#ffffff',
+    'noteBkgColor': '#1e293b',
+    'noteTextColor': '#ffffff',
+    'noteBorderColor': '#0f172a',
+    'actorBkg': '#f1f5f9',
+    'actorBorder': '#0f172a',
+    'actorTextColor': '#0f172a',
+    'activationBorderColor': '#0f172a',
+    'sequenceNumberColor': '#ffffff'
+  }
+}}%%
 sequenceDiagram
     autonumber
     actor Client as ผู้ใช้งาน (Browser / Client)
@@ -15,7 +34,7 @@ sequenceDiagram
     %% =========================================================================
     %% ส่วนที่ 1: CORS Preflight Request
     %% =========================================================================
-    rect rgb(240, 248, 255)
+    rect rgb(226, 232, 240)
         Note over Client,CORS: 0. การตรวจสอบ CORS Preflight (OPTIONS Request)
         Client->>CORS: OPTIONS /api/v1/auth/*
         CORS-->>Client: 200 OK (Set Access-Control-Allow-* Headers)
@@ -24,7 +43,7 @@ sequenceDiagram
     %% =========================================================================
     %% ส่วนที่ 2: การลงทะเบียนด้วย Serial Key พร้อมระบบ Saga Rollback
     %% =========================================================================
-    rect rgb(235, 250, 235)
+    rect rgb(219, 234, 254)
         Note over Client,SupaAuth: 1. การลงทะเบียนด้วย Serial Key (POST /api/v1/auth/register-serial)
         Client->>CORS: POST /api/v1/auth/register-serial {username, serial_key}
         CORS->>Router: ส่งต่อ Request พร้อมตั้งค่า CORS Headers
@@ -117,7 +136,7 @@ sequenceDiagram
     %% =========================================================================
     %% ส่วนที่ 3: การตรวจสอบสิทธิ์ผู้ใช้งาน (Verify Auth)
     %% =========================================================================
-    rect rgb(255, 248, 230)
+    rect rgb(220, 252, 231)
         Note over Client,Service: 2. การตรวจสอบสถานะเข้าสู่ระบบ (GET /api/v1/auth/verify)
         Client->>CORS: GET /api/v1/auth/verify (แนบ Cookie: auth_token)
         CORS->>Router: ส่งต่อ Request
@@ -145,7 +164,7 @@ sequenceDiagram
     %% =========================================================================
     %% ส่วนที่ 4: การออกจากระบบ (Logout)
     %% =========================================================================
-    rect rgb(253, 237, 236)
+    rect rgb(254, 240, 138)
         Note over Client,Handler: 3. การออกจากระบบ (POST /api/v1/auth/logout)
         Client->>CORS: POST /api/v1/auth/logout
         CORS->>Router: ส่งต่อ Request
@@ -157,7 +176,7 @@ sequenceDiagram
     %% =========================================================================
     %% ส่วนที่ 5: การถอนสิทธิ์ Serial Key และลบผู้ใช้ (Revoke User - Admin)
     %% =========================================================================
-    rect rgb(245, 238, 255)
+    rect rgb(255, 228, 230)
         Note over Client,SupaAuth: 4. การถอนสิทธิ์ Serial Key และลบผู้ใช้ (POST / DELETE /api/v1/auth/revoke-user)
         Client->>CORS: POST /api/v1/auth/revoke-user (Header: X-Admin-Key, Body: {username: "testuser01"})
         CORS->>Router: ส่งต่อ Request
