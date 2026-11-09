@@ -25,3 +25,6 @@
 {"level":"info","ts":"2026-11-06T17:15:07.127+0700","caller":"logger/logger_test.go:12","msg":"test logger initialized"}
 {"level":"info","ts":"2026-11-06T17:54:00.250+0700","caller":"logger/logger_test.go:12","msg":"test logger initialized"}
 {"level":"info","ts":"2026-11-06T17:55:28.134+0700","caller":"logger/logger_test.go:12","msg":"test logger initialized"}
+{"level":"info","ts":"2026-11-06T18:30:25.323+0700","caller":"logger/logger_test.go:12","msg":"test logger initialized"}
+{"level":"info","ts":"2026-11-06T18:31:09.126+0700","caller":"logger/logger_test.go:12","msg":"test logger initialized"}
+{"level":"info","ts":"2026-11-06T18:31:48.082+0700","caller":"logger/logger_test.go:12","msg":"test logger initialized"}

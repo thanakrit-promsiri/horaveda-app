@@ -34,6 +34,9 @@ func TestLoadConfig_WithServiceRoleKeyAndCustomEnv(t *testing.T) {
 	if !cfg.CookieSecure {
 		t.Error("expected CookieSecure=true")
 	}
+	if cfg.HoraTransitAPIURL != "http://localhost:8083/api/v1/hora/transitdasha_prompt" {
+		t.Errorf("expected default HoraTransitAPIURL, got %q", cfg.HoraTransitAPIURL)
+	}
 }
 
 func TestLoadConfig_WithPublishableKeyAndDefaults(t *testing.T) {

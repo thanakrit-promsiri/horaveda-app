@@ -6,6 +6,7 @@ import (
 	"errors"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 
 	"horaveda-app/internal/domain"
@@ -132,8 +133,114 @@ func TestHoraService_GetHoraPrompt(t *testing.T) {
 		if svc.HoraAPIURL != DefaultHoraAPIURL {
 			t.Errorf("expected default URL %q, got %q", DefaultHoraAPIURL, svc.HoraAPIURL)
 		}
+		if svc.HoraTransitAPIURL != DefaultHoraTransitAPIURL {
+			t.Errorf("expected default Transit URL %q, got %q", DefaultHoraTransitAPIURL, svc.HoraTransitAPIURL)
+		}
 		if svc.HTTPClient == nil {
 			t.Error("expected non-nil default HTTPClient")
 		}
 	})
+}
+
+func TestHoraService_GetHoraTransitPrompt(t *testing.T) {
+	transitPromptSample := "[Vedic Transit(Lahiri)/WholeSign | Date:2026-12-23]\nTransit: Ju:Ge 05°"
+
+	t.Run("success sends transit_year and transit_month and returns prompt", func(t *testing.T) {
+		var capturedReq domain.HoraTransitPromptRequest
+
+		mockClient := newMockHTTPClient(func(w http.ResponseWriter, r *http.Request) {
+			if r.Method != http.MethodPost {
+				t.Errorf("expected POST, got %s", r.Method)
+			}
+			if err := json.NewDecoder(r.Body).Decode(&capturedReq); err != nil {
+				t.Fatalf("failed to decode request body: %v", err)
+			}
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusOK)
+			_ = json.NewEncoder(w).Encode(domain.HoraPromptResponse{
+				Status: "success",
+				Prompt: transitPromptSample,
+			})
+		})
+
+		svc := NewHoraServiceWithTransit(
+			"http://localhost:8083/api/v1/hora/prompt",
+			"http://localhost:8083/api/v1/hora/transitdasha_prompt",
+			newTestLogger(),
+			mockClient,
+		)
+
+		res, err := svc.GetHoraTransitPrompt(context.Background(), domain.HoraTransitPredictRequest{
+			Year:         1988,
+			Month:        12,
+			Day:          23,
+			HourThai:     10.35,
+			Latitude:     13.7563,
+			Longitude:    100.5018,
+			TransitYear:  2026,
+			TransitMonth: 12,
+		})
+		if err != nil {
+			t.Fatalf("expected no error, got %v", err)
+		}
+
+		if capturedReq.CalculateReq.TransitYear != 2026 || capturedReq.CalculateReq.TransitMonth != 12 {
+			t.Errorf("unexpected transit date: year=%d, month=%d", capturedReq.CalculateReq.TransitYear, capturedReq.CalculateReq.TransitMonth)
+		}
+		if capturedReq.CalculateReq.TimeZone != 7.0 || capturedReq.CalculateReq.HouseSystem != "W" {
+			t.Errorf("expected default timezone 7.0 and house_system W, got tz=%f, house=%s", capturedReq.CalculateReq.TimeZone, capturedReq.CalculateReq.HouseSystem)
+		}
+		if res.Prompt != transitPromptSample {
+			t.Errorf("unexpected prompt: %s", res.Prompt)
+		}
+	})
+}
+
+func TestHoraService_GetBothPrompts(t *testing.T) {
+	natalPrompt := "[Natal Prompt]"
+	transitPrompt := "[Transit Prompt]"
+
+	mockClient := newMockHTTPClient(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusOK)
+		if strings.Contains(r.URL.Path, "transitdasha_prompt") {
+			_ = json.NewEncoder(w).Encode(domain.HoraPromptResponse{
+				Status: "success",
+				Prompt: transitPrompt,
+			})
+		} else {
+			_ = json.NewEncoder(w).Encode(domain.HoraPromptResponse{
+				Status: "success",
+				Prompt: natalPrompt,
+			})
+		}
+	})
+
+	svc := NewHoraServiceWithTransit(
+		"http://localhost:8083/api/v1/hora/prompt",
+		"http://localhost:8083/api/v1/hora/transitdasha_prompt",
+		newTestLogger(),
+		mockClient,
+	)
+
+	natalRes, transitRes, err := svc.GetBothPrompts(context.Background(), domain.HoraTransitPredictRequest{
+		Year:         1988,
+		Month:        12,
+		Day:          23,
+		HourThai:     10.35,
+		Latitude:     13.7563,
+		Longitude:    100.5018,
+		TransitYear:  2026,
+		TransitMonth: 12,
+	})
+
+	if err != nil {
+		t.Fatalf("expected no error, got %v", err)
+	}
+	if natalRes.Prompt != natalPrompt {
+		t.Errorf("expected natal prompt %q, got %q", natalPrompt, natalRes.Prompt)
+	}
+	if transitRes.Prompt != transitPrompt {
+		t.Errorf("expected transit prompt %q, got %q", transitPrompt, transitRes.Prompt)
+	}
 }

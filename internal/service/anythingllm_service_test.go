@@ -262,6 +262,46 @@ func TestAnythingLLMService_PredictNatalChart(t *testing.T) {
 		}
 	})
 
+	t.Run("chat 404 auto-recovers by recreating workspace and thread, then succeeding on retry", func(t *testing.T) {
+		fake := newFakeAnythingLLM()
+		svc := fake.service()
+
+		// จำลองว่าเคยแคชไว้แต่ Workspace ถูกลบออกจาก AnythingLLM
+		svc.threadCache.Store("testuser01", threadRef{WorkspaceSlug: "testuser01", ThreadSlug: "testuser01-hora"})
+
+		// ครั้งแรกที่ส่ง chat จะตอบกลับ 404 ว่าไม่พบ Workspace
+		fake.chatStatus = http.StatusNotFound
+		fake.chatBody = `{"id":"c3fe8cb2","type":"abort","textResponse":null,"sources":[],"close":true,"error":"Workspace testuser01 not found."}`
+
+		// เมื่อมีการเรียกสร้าง workspace ใหม่ ให้สลับสถานะ chat กลับเป็น 200 OK
+		oldHandler := fake.handler
+		callCount := 0
+		svc.HTTPClient = newMockHTTPClient(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			if r.Method == http.MethodPost && strings.Contains(r.URL.Path, "/chat") {
+				callCount++
+				if callCount == 1 {
+					fake.chatStatus = http.StatusNotFound
+					fake.chatBody = `{"error":"Workspace testuser01 not found."}`
+				} else {
+					fake.chatStatus = http.StatusOK
+					fake.chatBody = `{"id":"abc","type":"textResponse","textResponse":"คำทำนายที่สำเร็จหลัง retry","close":true,"error":null}`
+				}
+			}
+			oldHandler(w, r)
+		}))
+
+		res, err := svc.PredictNatalChart(context.Background(), "testuser01", chart)
+		if err != nil {
+			t.Fatalf("expected auto-recovery to succeed, got error: %v", err)
+		}
+		if res.TextResponse != "คำทำนายที่สำเร็จหลัง retry" {
+			t.Errorf("unexpected prediction text: %s", res.TextResponse)
+		}
+		if callCount != 2 {
+			t.Errorf("expected 2 chat calls (1 failure + 1 retry), got %d", callCount)
+		}
+	})
+
 	t.Run("chat response with error field returns 502", func(t *testing.T) {
 		fake := newFakeAnythingLLM()
 		fake.workspaces["testuser01"] = []string{"testuser01-hora"}
@@ -321,6 +361,130 @@ func TestBuildVedicPredictionPrompt(t *testing.T) {
 			t.Errorf("expected prompt to contain %q", want)
 		}
 	}
+}
+
+func TestBuildVedicTransitPredictionPrompt(t *testing.T) {
+	if got := ThaiMonthName(1); got != "มกราคม" {
+		t.Errorf("expected มกราคม, got %s", got)
+	}
+	if got := ThaiMonthName(12); got != "ธันวาคม" {
+		t.Errorf("expected ธันวาคม, got %s", got)
+	}
+	if got := ToBuddhistYear(2026); got != 2569 {
+		t.Errorf("expected 2569, got %d", got)
+	}
+	if got := ToBuddhistYear(2027); got != 2570 {
+		t.Errorf("expected 2570, got %d", got)
+	}
+	if got := ToBuddhistYear(2570); got != 2570 {
+		t.Errorf("expected 2570 for existing BE year, got %d", got)
+	}
+
+	full := FormatThaiMonthYear(2027, 1)
+	if full != "เดือนมกราคม พ.ศ. 2570" {
+		t.Errorf("expected 'เดือนมกราคม พ.ศ. 2570', got %q", full)
+	}
+
+	short := FormatThaiMonthYearShort(2027, 1)
+	if short != "เดือนมกราคม 2570" {
+		t.Errorf("expected 'เดือนมกราคม 2570', got %q", short)
+	}
+
+	natalPrompt := "[Vedic Sidereal(Lahiri)/WholeSign]\nASC:Aq 03°39'"
+	transitPrompt := "[Vedic Transit(Lahiri)/WholeSign | Date:2027-01-23]\nTransit: Ju:Ge 05°"
+
+	assembled := BuildVedicTransitPredictionPrompt(natalPrompt, transitPrompt, 2027, 1)
+
+	expectedSnippets := []string{
+		"คำพยากรณ์ดวงชะตาประจำเดือนมกราคม พ.ศ. 2570",
+		"อิทธิพลของดาวจรสำคัญในเดือนมกราคม พ.ศ. 2570 ส่งกระแสสัมพันธ์กับลัคนาตามเวลาเกิดของเจ้าชะตา มีเกณฑ์การเปลี่ยนแปลงไปในทิศทางที่โดดเด่นดังนี้ ภาพรวม อื่นๆ :",
+		"•\nการงานและการศึกษา:",
+		"•\nการเงินและโชคลาภ:",
+		"•\nความรักและสุขภาพ:",
+		"🪐 ดาวจรสำคัญ:",
+		"✨ เดือนมกราคม 2570:",
+		"พระพุทธศาสนา",
+		"ASC:Aq 03°39'",
+		"Ju:Ge 05°",
+	}
+
+	for _, want := range expectedSnippets {
+		if !strings.Contains(assembled, want) {
+			t.Errorf("assembled transit prompt missing snippet: %q", want)
+		}
+	}
+}
+
+func TestAnythingLLMService_PredictTransitChart(t *testing.T) {
+	transitPrompt := "Prompt for transit"
+
+	t.Run("uses same thread as natal chart and sends chat", func(t *testing.T) {
+		fake := newFakeAnythingLLM()
+		svc := fake.service()
+
+		res, err := svc.PredictTransitChart(context.Background(), "testuser01", transitPrompt)
+		if err != nil {
+			t.Fatalf("expected no error, got %v", err)
+		}
+		if res.WorkspaceSlug != "testuser01" || res.ThreadSlug != "testuser01-hora" || res.TextResponse != "คำทำนายพื้นดวง" {
+			t.Errorf("unexpected result: %+v", res)
+		}
+
+		expected := []string{
+			"GET /workspace/testuser01",
+			"GET /workspaces",
+			"POST /workspace/new",
+			"GET /workspace/testuser01/threads",
+			"POST /workspace/testuser01/thread/new",
+			"POST /workspace/testuser01/thread/testuser01-hora/chat",
+		}
+		if strings.Join(fake.calls, "|") != strings.Join(expected, "|") {
+			t.Errorf("unexpected call sequence:\n got %v\nwant %v", fake.calls, expected)
+		}
+	})
+
+	t.Run("natal prediction followed by transit prediction reuses same thread without creating new thread", func(t *testing.T) {
+		fake := newFakeAnythingLLM()
+		svc := fake.service()
+
+		// 1. ทำนายพื้นดวงกำเนิด
+		resNatal, err := svc.PredictNatalChart(context.Background(), "testuser01", "natal chart")
+		if err != nil {
+			t.Fatalf("natal prediction failed: %v", err)
+		}
+		if resNatal.ThreadSlug != "testuser01-hora" {
+			t.Errorf("unexpected natal thread slug: %s", resNatal.ThreadSlug)
+		}
+
+		// 2. ทำนายดาวจร -> ต้องใช้ Thread เดียวกัน (testuser01-hora)
+		resTransit, err := svc.PredictTransitChart(context.Background(), "testuser01", transitPrompt)
+		if err != nil {
+			t.Fatalf("transit prediction failed: %v", err)
+		}
+		if resTransit.ThreadSlug != resNatal.ThreadSlug {
+			t.Errorf("expected same thread slug: natal=%s, transit=%s", resNatal.ThreadSlug, resTransit.ThreadSlug)
+		}
+
+		// ตรวจสอบว่าเรียกสร้าง Thread เพียงแค่ครั้งเดียวเท่านั้น
+		threadNewCalls := 0
+		for _, call := range fake.calls {
+			if strings.Contains(call, "/thread/new") {
+				threadNewCalls++
+			}
+		}
+		if threadNewCalls != 1 {
+			t.Errorf("expected exactly 1 thread creation, got %d. calls: %v", threadNewCalls, fake.calls)
+		}
+	})
+
+	t.Run("empty prompt returns 502", func(t *testing.T) {
+		fake := newFakeAnythingLLM()
+		_, err := fake.service().PredictTransitChart(context.Background(), "testuser01", "  ")
+		var appErr *response.AppError
+		if !errors.As(err, &appErr) || appErr.Code != http.StatusBadGateway {
+			t.Fatalf("expected 502 AppError, got %v", err)
+		}
+	})
 }
 
 func TestAnythingLLMService_Ping(t *testing.T) {

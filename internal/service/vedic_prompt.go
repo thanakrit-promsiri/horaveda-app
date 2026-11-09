@@ -1,6 +1,7 @@
 package service
 
 import (
+	"fmt"
 	"strings"
 )
 
@@ -52,5 +53,93 @@ func BuildVedicPredictionPrompt(chartPrompt string) string {
 	b.WriteString(strings.TrimSpace(chartPrompt))
 	b.WriteString("\n```\n\n")
 	b.WriteString(vedicPredictionInstruction)
+	return b.String()
+}
+
+// thaiMonthNames รายชื่อเดือนภาษาไทย 1-12 (1-based index)
+var thaiMonthNames = [...]string{
+	"",
+	"มกราคม",
+	"กุมภาพันธ์",
+	"มีนาคม",
+	"เมษายน",
+	"พฤษภาคม",
+	"มิถุนายน",
+	"กรกฎาคม",
+	"สิงหาคม",
+	"กันยายน",
+	"ตุลาคม",
+	"พฤศจิกายน",
+	"ธันวาคม",
+}
+
+// ThaiMonthName แปลงลำดับเดือน (1-12) เป็นชื่อเดือนภาษาไทย
+func ThaiMonthName(month int) string {
+	if month >= 1 && month <= 12 {
+		return thaiMonthNames[month]
+	}
+	return fmt.Sprintf("เดือนที่ %d", month)
+}
+
+// ToBuddhistYear แปลงปี ค.ศ. เป็น พ.ศ. (หากส่งปี พ.ศ. เกิน 2400 มาแล้วจะคงเดิมไว้)
+func ToBuddhistYear(year int) int {
+	if year > 0 && year < 2400 {
+		return year + 543
+	}
+	return year
+}
+
+// FormatThaiMonthYear สร้างข้อความเดือนและปี พ.ศ. เช่น "เดือนมกราคม พ.ศ. 2570" หรือ "เดือนธันวาคม พ.ศ. 2569"
+func FormatThaiMonthYear(year, month int) string {
+	return fmt.Sprintf("เดือน%s พ.ศ. %d", ThaiMonthName(month), ToBuddhistYear(year))
+}
+
+// FormatThaiMonthYearShort สร้างข้อความเดือนและปีแบบย่อ เช่น "เดือนมกราคม 2570"
+func FormatThaiMonthYearShort(year, month int) string {
+	return fmt.Sprintf("เดือน%s %d", ThaiMonthName(month), ToBuddhistYear(year))
+}
+
+// BuildVedicTransitPredictionPrompt รวมข้อมูลดาวชะตากำเนิด (Natal Chart) และข้อมูลดาวจร (Transit Chart & Dasha)
+// เข้ากับคำสั่งพยากรณ์ดาวจรประจำเดือนตามหลักโหราศาสตร์พระเวท โดยจัดรูปแบบคำตอบตามโครงสร้างที่กำหนดไว้อย่างเคร่งครัด
+func BuildVedicTransitPredictionPrompt(natalPrompt, transitPrompt string, transitYear, transitMonth int) string {
+	monthYearFull := FormatThaiMonthYear(transitYear, transitMonth)
+	monthYearShort := FormatThaiMonthYearShort(transitYear, transitMonth)
+
+	var b strings.Builder
+	b.WriteString("จงพยากรณ์ดวงชะตาดาวจรประจำ")
+	b.WriteString(monthYearFull)
+	b.WriteString(" ตามหลักโหราศาสตร์พระเวท (Vedic Jyotish / โหราศาสตร์ภารตะ ระบบนิรายนะ Lahiri Ayanamsa และ Whole Sign) โดยวิเคราะห์ปฏิสัมพันธ์ระหว่างข้อมูลดาวชะตากำเนิด (Natal Chart) และข้อมูลดาวจรพร้อมวิมโศตรีทศา (Transit Chart & Dasha) ต่อไปนี้\n\n")
+
+	b.WriteString("### 1. ข้อมูลดาวชะตากำเนิด (Natal Chart - Sidereal Lahiri / Whole Sign)\n```\n")
+	b.WriteString(strings.TrimSpace(natalPrompt))
+	b.WriteString("\n```\n\n")
+
+	b.WriteString("### 2. ข้อมูลดาวจรและทศาประจำเดือน (Transit Chart & Dasha - Sidereal Lahiri / Whole Sign)\n```\n")
+	b.WriteString(strings.TrimSpace(transitPrompt))
+	b.WriteString("\n```\n\n")
+
+	b.WriteString("### หลักเกณฑ์และขั้นตอนการวิเคราะห์\n")
+	b.WriteString("1. ให้นำตำแหน่งดาวจร (Transit) และทศาปัจจุบัน (Vimshottari Dasha: Mahadasha, Antardasha, Pratyantardasha) มาพิจารณาสัมพันธ์กับ ลัคนา (Lagna), ตนุลัคน์ และจันทร์กำเนิด ของดาวชะตากำเนิด\n")
+	b.WriteString("2. พิจารณาภพที่ดาวจรโคจรเข้าสถิต (nH..->tH..), การกุมกันของดาวจร (TransitConj) และเกณฑ์สายตาดาวจรส่งผลถึงดาวกำเนิด (TransitDrishti)\n")
+	b.WriteString("3. นำเสนอคำทำนายเป็นภาษาไทยที่สุภาพ สร้างสรรค์ และมีเหตุผลทางโหราศาสตร์รองรับพอประมาณเน้นคำทำนาย\n\n")
+
+	b.WriteString("### รูปแบบคำตอบที่ต้องส่งกลับ (ให้ใช้รูปแบบ โครงสร้าง และเครื่องหมายสัญลักษณ์ตามนี้อย่างเคร่งครัด):\n\n")
+	b.WriteString("คำพยากรณ์ดวงชะตาประจำ")
+	b.WriteString(monthYearFull)
+	b.WriteString("\n\n")
+	b.WriteString("อิทธิพลของดาวจรสำคัญใน")
+	b.WriteString(monthYearFull)
+	b.WriteString(" ส่งกระแสสัมพันธ์กับลัคนาตามเวลาเกิดของเจ้าชะตา มีเกณฑ์การเปลี่ยนแปลงไปในทิศทางที่โดดเด่นดังนี้ ภาพรวม อื่นๆ :\n")
+	b.WriteString("[ระบุคำทำนายภาพรวมของเดือน อิทธิพลของดาวจรหลักและบรรยากาศทั่วไปในชีวิต]\n\n")
+	b.WriteString("•\nการงานและการศึกษา: [คำทำนายด้านหน้าที่การงาน ความรับผิดชอบ โครงการใหม่ การสอบแข่งขัน หรือการติดต่อเจรจา]\n")
+	b.WriteString("•\nการเงินและโชคลาภ: [คำทำนายด้านกระแสการเงิน รายรับ รายจ่าย การลงทุน หรือลาภผล]\n")
+	b.WriteString("•\nความรักและสุขภาพ: [คำทำนายด้านความสัมพันธ์ คนรัก ครอบครัว และสุขภาพร่างกาย/สุขภาพจิตที่ควรดูแล]\n")
+	b.WriteString("🪐 ดาวจรสำคัญ: [ระบุดาวเคราะห์จรที่มีบทบาทสำคัญและส่งกระแสสัมพันธ์เด่นชัด เช่น ดาวพฤหัสบดี ดาวศุกร์ ดาวเสาร์ หรือราหูจร ใน")
+	b.WriteString(monthYearShort)
+	b.WriteString("]\n")
+	b.WriteString("✨ ")
+	b.WriteString(monthYearShort)
+	b.WriteString(": [คำแนะนำในการปรับปรุงตนเองจากการกระทำ (กรรม/สติตามหลักพุทธ) และการทำบุญในกรอบพระพุทธศาสนา เช่น ทำบุญค่าน้ำค่าไฟ ทำทาน บริจาคโลหิต ปฏิบัติธรรม เพื่อเสริมสิริมงคล]\n")
+
 	return b.String()
 }

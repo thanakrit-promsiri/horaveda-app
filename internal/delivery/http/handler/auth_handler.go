@@ -17,10 +17,12 @@ type AuthHandler struct {
 
 func NewAuthHandler(authService *service.AuthService, logger *zap.SugaredLogger, cfg *config.Config) *AuthHandler {
 	horaAPIURL := ""
+	horaTransitAPIURL := ""
 	anythingLLMURL, anythingLLMKey := "", ""
 	anythingLLMTimeout := service.DefaultAnythingLLMTimeout
 	if cfg != nil {
 		horaAPIURL = cfg.HoraAPIURL
+		horaTransitAPIURL = cfg.HoraTransitAPIURL
 		anythingLLMURL = cfg.AnythingLLMAPIURL
 		anythingLLMKey = cfg.AnythingLLMAPIKey
 		if cfg.AnythingLLMTimeout > 0 {
@@ -29,7 +31,7 @@ func NewAuthHandler(authService *service.AuthService, logger *zap.SugaredLogger,
 	}
 	return &AuthHandler{
 		AuthService:        authService,
-		HoraService:        service.NewHoraService(horaAPIURL, logger, nil),
+		HoraService:        service.NewHoraServiceWithTransit(horaAPIURL, horaTransitAPIURL, logger, nil),
 		AnythingLLMService: service.NewAnythingLLMService(anythingLLMURL, anythingLLMKey, anythingLLMTimeout, logger, nil),
 		Logger:             logger,
 		Cfg:                cfg, // <-- กำหนดค่า config

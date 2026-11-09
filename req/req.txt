@@ -62,6 +62,45 @@ Cookie: auth_token=<JWT_TOKEN> (หรือ Header Authorization: Bearer <JWT_T
   }
 }
 
+--------------------------------------------------
+
+### 6. ทำนายดวงชะตาดาวจรรายเดือน ปี 2570 (12 เส้นครอบ: transitpredict_1 ถึง transitpredict_12)
+# ล็อก transit_year = 2027 (พ.ศ. 2570), house_system = "W", และ transit_month ตามหมายเลขเส้น (1 ถึง 12)
+# หน้าเว็บเรียกทีละเดือนเพื่อแสดงผล โดยระบุข้อมูลวันเกิด เวลา และพิกัดสถานที่เกิด
+
+POST http://localhost:8082/api/v1/hora/transitpredict_1
+Cookie: auth_token=<JWT_TOKEN> (หรือ Header Authorization: Bearer <JWT_TOKEN>)
+
+{
+  "year": 1988,
+  "month": 12,
+  "day": 23,
+  "hour_thai": 10.35,
+  "time_zone": 7.0,
+  "latitude": 13.7563,
+  "longitude": 100.5018,
+  "house_system": "W",
+  "transit_year": 2027,
+  "transit_month": 1
+}
+
+{
+  "success": true,
+  "message": "พยากรณ์ดวงชะตาดาวจรประจำเดือนสำเร็จ",
+  "data": {
+    "status": "success",
+    "natal_prompt": "[Vedic Sidereal(Lahiri)/WholeSign]\nASC:Aq 03°39'23\"...",
+    "transit_prompt": "[Vedic Transit(Lahiri)/WholeSign | Date:2027-01-23]...",
+    "transit_month": 1,
+    "transit_year": 2027,
+    "transit_month_thai": "เดือนมกราคม พ.ศ. 2570",
+    "prediction": "คำพยากรณ์ดวงชะตาประจำเดือนมกราคม พ.ศ. 2570\n\nอิทธิพลของดาวจรสำคัญในเดือนมกราคม พ.ศ. 2570 ส่งกระแสสัมพันธ์กับลัคนาตามเวลาเกิดของเจ้าชะตา มีเกณฑ์การเปลี่ยนแปลงไปในทิศทางที่โดดเด่นดังนี้ ภาพรวม อื่นๆ :\n...",
+    "workspace_slug": "testuser01",
+    "thread_slug": "testuser01-hora"
+  }
+}
+
+
 
 --------------------------------------------------
 
@@ -78,3 +117,79 @@ Cookie: auth_token=<JWT_TOKEN> (หรือ Header Authorization: Bearer <JWT_T
     "warning": "ไม่สามารถเชื่อมต่อบริการทำนาย AI ได้ในขณะนี้ ระบบได้ส่งคืนข้อมูลพื้นดวงชะตาสำหรับการผูกดวงแล้ว"
   }
 }
+
+--------------------------------------------------
+
+### 5. ทำนายดวงชะตาดาวจรประจำเดือน (ต้องมี Token จากการลงทะเบียนผ่าน Serial Key)
+POST http://localhost:8082/api/v1/hora/transitpredict
+Cookie: auth_token=<JWT_TOKEN> (หรือ Header Authorization: Bearer <JWT_TOKEN>)
+# username: ใช้เป็น Workspace บน AnythingLLM (ไม่บังคับ หากไม่ส่งจะใช้ username จาก JWT และต้องตรงกับ JWT)
+
+{
+  "year": 1988,
+  "month": 12,
+  "day": 23,
+  "hour_thai": 10.35,
+  "time_zone": 7.0,
+  "latitude": 13.7563,
+  "longitude": 100.5018,
+  "house_system": "W",
+  "transit_year": 2026,
+  "transit_month": 12
+}
+
+{
+  "success": true,
+  "message": "พยากรณ์ดวงชะตาดาวจรประจำเดือนสำเร็จ",
+  "data": {
+    "status": "success",
+    "natal_prompt": "[Vedic Sidereal(Lahiri)/WholeSign]\nASC:Aq 03°39'23\"|D9:Sc|Nak:Dhanishta(4,Ma) ...",
+    "transit_prompt": "[Vedic Transit(Lahiri)/WholeSign | Date:2026-12-23]\nTransit: Su:Sg 07°49'03\"(Fri)[nH11->tH11] ...",
+    "transit_month": 12,
+    "transit_year": 2026,
+    "transit_month_thai": "เดือนธันวาคม พ.ศ. 2569",
+    "prediction": "คำพยากรณ์ดวงชะตาประจำเดือนธันวาคม พ.ศ. 2569\n\nอิทธิพลของดาวจรสำคัญในเดือนธันวาคม พ.ศ. 2569 ส่งกระแสสัมพันธ์กับลัคนาตามเวลาเกิดของเจ้าชะตา มีเกณฑ์การเปลี่ยนแปลงไปในทิศทางที่โดดเด่นดังนี้ ภาพรวม อื่นๆ :\nบรรยากาศในชีวิตเดือนนี้มีความตื่นตัวและมีพลังในการริเริ่มสิ่งใหม่ๆ กระแสของดาวจรเกื้อหนุนให้กิจการราบรื่น...\n\n•\nการงานและการศึกษา: มีโอกาสได้รับผิดชอบงานสำคัญหรือโปรเจกต์ใหม่ ผู้ใหญ่และผู้ร่วมงานให้ความไว้วางใจ\n•\nการเงินและโชคลาภ: กระแสการเงินหมุนเวียนคล่องตัว มีเกณฑ์ได้ผลตอบแทนหรือรายได้เสริมจากความสามารถเฉพาะตัว\n•\nความรักและสุขภาพ: ความสัมพันธ์ราบรื่นและมีความเข้าใจอันดี ควรดูแลสุขภาพเรื่องการพักผ่อนให้เพียงพอ\n🪐 ดาวจรสำคัญ: ดาวพฤหัสบดีและดาวศุกร์จรส่งกระแสศุภมงคลในเดือนธันวาคม 2569\n✨ เดือนธันวาคม 2569: แนะนำทำบุญแสงสว่างหรือบริจาคทานเพื่อเสริมสิริมงคล",
+    "workspace_slug": "testuser01",
+    "thread_slug": "testuser01-hora"
+  }
+}
+
+--------------------------------------------------
+
+### 6. ทำนายดวงชะตาดาวจรรายเดือน ปี 2570 (12 เส้นครอบ: transitpredict_1 ถึง transitpredict_12)
+# ล็อก transit_year = 2027 (พ.ศ. 2570), house_system = "W", และ transit_month ตามหมายเลขเส้น (1 ถึง 12)
+# หน้าเว็บเรียกทีละเดือนเพื่อแสดงผล โดยระบุข้อมูลวันเกิด เวลา และพิกัดสถานที่เกิด
+
+POST http://localhost:8082/api/v1/hora/transitpredict_1
+Cookie: auth_token=<JWT_TOKEN> (หรือ Header Authorization: Bearer <JWT_TOKEN>)
+
+{
+  "year": 1988,
+  "month": 12,
+  "day": 23,
+  "hour_thai": 10.35,
+  "time_zone": 7.0,
+  "latitude": 13.7563,
+  "longitude": 100.5018,
+  "house_system": "W",
+  "transit_year": 2027,
+  "transit_month": 1
+}
+
+{
+  "success": true,
+  "message": "พยากรณ์ดวงชะตาดาวจรประจำเดือนสำเร็จ",
+  "data": {
+    "status": "success",
+    "natal_prompt": "[Vedic Sidereal(Lahiri)/WholeSign]\nASC:Aq 03°39'23\"...",
+    "transit_prompt": "[Vedic Transit(Lahiri)/WholeSign | Date:2027-01-23]...",
+    "transit_month": 1,
+    "transit_year": 2027,
+    "transit_month_thai": "เดือนมกราคม พ.ศ. 2570",
+    "prediction": "คำพยากรณ์ดวงชะตาประจำเดือนมกราคม พ.ศ. 2570\n\nอิทธิพลของดาวจรสำคัญในเดือนมกราคม พ.ศ. 2570 ส่งกระแสสัมพันธ์กับลัคนาตามเวลาเกิดของเจ้าชะตา มีเกณฑ์การเปลี่ยนแปลงไปในทิศทางที่โดดเด่นดังนี้ ภาพรวม อื่นๆ :\n...",
+    "workspace_slug": "testuser01",
+    "thread_slug": "testuser01-hora"
+  }
+}
+
+

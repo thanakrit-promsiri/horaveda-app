@@ -22,6 +22,7 @@ type Config struct {
 	CookieSecure   bool   // กำหนดค่า Secure ของ Cookie ให้สอดคล้องกันทั้งระบบ
 	AdminAPIKey    string // คีย์สำหรับยืนยันสิทธิ์ผู้ดูแลระบบ (Admin Endpoints)
 	HoraAPIURL     string // URL สำหรับเรียกใช้บริการคำนวณพื้นดวงชะตา (Lahiri Prompt API)
+	HoraTransitAPIURL string // URL สำหรับเรียกใช้บริการคำนวณดาวจร (Lahiri Transit Dasha Prompt API)
 
 	AnythingLLMAPIURL  string        // URL ของ AnythingLLM Developer API (Default: http://localhost:3001/api/v1)
 	AnythingLLMAPIKey  string        // API Key ของ AnythingLLM (ว่าง = ปิดการพยากรณ์ด้วย AnythingLLM)
@@ -89,6 +90,16 @@ func LoadConfig() *Config {
 		horaAPIURL = "http://localhost:8083/api/v1/hora/prompt"
 	}
 
+	// ดึงค่า HORA_TRANSIT_API_URL จาก .env (หากไม่ได้ตั้งค่าไว้ จะแปลงจาก HORA_API_URL หรือใช้ Default)
+	horaTransitAPIURL := os.Getenv("HORA_TRANSIT_API_URL")
+	if horaTransitAPIURL == "" {
+		if strings.HasSuffix(horaAPIURL, "/prompt") {
+			horaTransitAPIURL = strings.TrimSuffix(horaAPIURL, "/prompt") + "/transitdasha_prompt"
+		} else {
+			horaTransitAPIURL = "http://localhost:8083/api/v1/hora/transitdasha_prompt"
+		}
+	}
+
 	// ดึงค่าการเชื่อมต่อ AnythingLLM จาก .env
 	anythingLLMAPIURL := strings.TrimSpace(os.Getenv("ANYTHINGLLM_API_URL"))
 	if anythingLLMAPIURL == "" {
@@ -127,6 +138,7 @@ func LoadConfig() *Config {
 		CookieSecure:   cookieSecure,
 		AdminAPIKey:    adminAPIKey,
 		HoraAPIURL:     horaAPIURL,
+		HoraTransitAPIURL: horaTransitAPIURL,
 
 		AnythingLLMAPIURL:  anythingLLMAPIURL,
 		AnythingLLMAPIKey:  anythingLLMAPIKey,

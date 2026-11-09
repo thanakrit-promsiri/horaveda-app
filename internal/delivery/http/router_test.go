@@ -153,6 +153,82 @@ func TestNewRouter(t *testing.T) {
 			t.Errorf("expected 200, got %d", rr.Code)
 		}
 	})
+
+	t.Run("POST /api/v1/hora/transitpredict requires auth and returns 200", func(t *testing.T) {
+		// 1. Without auth -> 401
+		body := `{"year": 1988, "month": 12, "day": 23, "hour_thai": 10.35, "latitude": 13.7563, "longitude": 100.5018, "transit_year": 2026, "transit_month": 12}`
+		reqNoAuth := httptest.NewRequest(http.MethodPost, "/api/v1/hora/transitpredict", bytes.NewBufferString(body))
+		rrNoAuth := httptest.NewRecorder()
+		mux.ServeHTTP(rrNoAuth, reqNoAuth)
+		if rrNoAuth.Code != http.StatusUnauthorized {
+			t.Errorf("expected 401 without auth token, got %d", rrNoAuth.Code)
+		}
+
+		// 2. With auth -> 200
+		mockClient := &http.Client{
+			Transport: routerRoundTripFunc(func(req *http.Request) (*http.Response, error) {
+				rr := httptest.NewRecorder()
+				rr.Header().Set("Content-Type", "application/json")
+				rr.WriteHeader(http.StatusOK)
+				_, _ = rr.Write([]byte(`{"status":"success","prompt":"[Prompt Result]"}`))
+				return rr.Result(), nil
+			}),
+		}
+
+		authHandler.HoraService = service.NewHoraServiceWithTransit(
+			"http://localhost:8083/api/v1/hora/prompt",
+			"http://localhost:8083/api/v1/hora/transitdasha_prompt",
+			log,
+			mockClient,
+		)
+
+		token := jwt.NewWithClaims(jwt.SigningMethodHS256, jwt.MapClaims{
+			"user_id":  1,
+			"username": "testuser01",
+			"exp":      time.Now().Add(time.Hour).Unix(),
+		})
+		tokenStr, _ := token.SignedString(secret)
+
+		reqAuth := httptest.NewRequest(http.MethodPost, "/api/v1/hora/transitpredict", bytes.NewBufferString(body))
+		reqAuth.AddCookie(&http.Cookie{Name: "auth_token", Value: tokenStr})
+		rrAuth := httptest.NewRecorder()
+
+		mux.ServeHTTP(rrAuth, reqAuth)
+
+		if rrAuth.Code != http.StatusOK {
+			t.Errorf("expected 200 with auth token, got %d: %s", rrAuth.Code, rrAuth.Body.String())
+		}
+	})
+
+	t.Run("POST /api/v1/hora/transitpredict_1 and _12 fix transit_year=2027 and month", func(t *testing.T) {
+		token := jwt.NewWithClaims(jwt.SigningMethodHS256, jwt.MapClaims{
+			"user_id":  1,
+			"username": "testuser01",
+			"exp":      time.Now().Add(time.Hour).Unix(),
+		})
+		tokenStr, _ := token.SignedString(secret)
+
+		// ส่ง body โดยไม่ต้องมี transit_year หรือ transit_month
+		simpleBody := `{"year": 1988, "month": 12, "day": 23, "hour_thai": 10.35, "latitude": 13.7563, "longitude": 100.5018}`
+
+		// ทดสอบเดือน 1 (มกราคม 2570)
+		req1 := httptest.NewRequest(http.MethodPost, "/api/v1/hora/transitpredict_1", bytes.NewBufferString(simpleBody))
+		req1.AddCookie(&http.Cookie{Name: "auth_token", Value: tokenStr})
+		rr1 := httptest.NewRecorder()
+		mux.ServeHTTP(rr1, req1)
+		if rr1.Code != http.StatusOK {
+			t.Fatalf("expected 200 for transitpredict_1, got %d: %s", rr1.Code, rr1.Body.String())
+		}
+
+		// ทดสอบเดือน 12 (ธันวาคม 2570)
+		req12 := httptest.NewRequest(http.MethodPost, "/api/v1/hora/transitpredict_12", bytes.NewBufferString(simpleBody))
+		req12.AddCookie(&http.Cookie{Name: "auth_token", Value: tokenStr})
+		rr12 := httptest.NewRecorder()
+		mux.ServeHTTP(rr12, req12)
+		if rr12.Code != http.StatusOK {
+			t.Fatalf("expected 200 for transitpredict_12, got %d: %s", rr12.Code, rr12.Body.String())
+		}
+	})
 }
 
 type routerRoundTripFunc func(req *http.Request) (*http.Response, error)

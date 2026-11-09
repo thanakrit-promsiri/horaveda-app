@@ -143,3 +143,24 @@
 {"level":"info","ts":"2026-11-06T17:55:26.151+0700","caller":"config/config.go:56","msg":"Connected to Supabase successfully!"}
 {"level":"warn","ts":"2026-11-06T17:55:26.151+0700","caller":"config/config.go:72","msg":"ไม่ได้กำหนดค่า JWT_SECRET ใน .env ระบบจะใช้ค่าเริ่มต้นชั่วคราว (ไม่แนะนำสำหรับ Production)"}
 {"level":"warn","ts":"2026-11-06T17:55:26.151+0700","caller":"config/config.go:108","msg":"ไม่ได้กำหนดค่า ANYTHINGLLM_API_KEY ใน .env ระบบจะคืนเฉพาะพิกัดดวงดาวโดยไม่มีคำทำนายจาก AnythingLLM"}
+{"level":"info","ts":"2026-11-06T18:30:23.277+0700","caller":"config/config.go:50","msg":"กำลังเชื่อมต่อ Supabase","key_type":"Service Role Key (Bypass RLS)"}
+{"level":"info","ts":"2026-11-06T18:30:23.278+0700","caller":"config/config.go:56","msg":"Connected to Supabase successfully!"}
+{"level":"warn","ts":"2026-11-06T18:30:23.278+0700","caller":"config/config.go:108","msg":"ไม่ได้กำหนดค่า ANYTHINGLLM_API_KEY ใน .env ระบบจะคืนเฉพาะพิกัดดวงดาวโดยไม่มีคำทำนายจาก AnythingLLM"}
+{"level":"info","ts":"2026-11-06T18:30:23.278+0700","caller":"config/config.go:50","msg":"กำลังเชื่อมต่อ Supabase","key_type":"Publishable/Anon Key"}
+{"level":"info","ts":"2026-11-06T18:30:23.279+0700","caller":"config/config.go:56","msg":"Connected to Supabase successfully!"}
+{"level":"warn","ts":"2026-11-06T18:30:23.279+0700","caller":"config/config.go:72","msg":"ไม่ได้กำหนดค่า JWT_SECRET ใน .env ระบบจะใช้ค่าเริ่มต้นชั่วคราว (ไม่แนะนำสำหรับ Production)"}
+{"level":"warn","ts":"2026-11-06T18:30:23.279+0700","caller":"config/config.go:108","msg":"ไม่ได้กำหนดค่า ANYTHINGLLM_API_KEY ใน .env ระบบจะคืนเฉพาะพิกัดดวงดาวโดยไม่มีคำทำนายจาก AnythingLLM"}
+{"level":"info","ts":"2026-11-06T18:31:09.272+0700","caller":"config/config.go:50","msg":"กำลังเชื่อมต่อ Supabase","key_type":"Service Role Key (Bypass RLS)"}
+{"level":"info","ts":"2026-11-06T18:31:09.272+0700","caller":"config/config.go:56","msg":"Connected to Supabase successfully!"}
+{"level":"warn","ts":"2026-11-06T18:31:09.272+0700","caller":"config/config.go:108","msg":"ไม่ได้กำหนดค่า ANYTHINGLLM_API_KEY ใน .env ระบบจะคืนเฉพาะพิกัดดวงดาวโดยไม่มีคำทำนายจาก AnythingLLM"}
+{"level":"info","ts":"2026-11-06T18:31:09.273+0700","caller":"config/config.go:50","msg":"กำลังเชื่อมต่อ Supabase","key_type":"Publishable/Anon Key"}
+{"level":"info","ts":"2026-11-06T18:31:09.273+0700","caller":"config/config.go:56","msg":"Connected to Supabase successfully!"}
+{"level":"warn","ts":"2026-11-06T18:31:09.273+0700","caller":"config/config.go:72","msg":"ไม่ได้กำหนดค่า JWT_SECRET ใน .env ระบบจะใช้ค่าเริ่มต้นชั่วคราว (ไม่แนะนำสำหรับ Production)"}
+{"level":"warn","ts":"2026-11-06T18:31:09.273+0700","caller":"config/config.go:108","msg":"ไม่ได้กำหนดค่า ANYTHINGLLM_API_KEY ใน .env ระบบจะคืนเฉพาะพิกัดดวงดาวโดยไม่มีคำทำนายจาก AnythingLLM"}
+{"level":"info","ts":"2026-11-06T18:31:48.033+0700","caller":"config/config.go:50","msg":"กำลังเชื่อมต่อ Supabase","key_type":"Service Role Key (Bypass RLS)"}
+{"level":"info","ts":"2026-11-06T18:31:48.036+0700","caller":"config/config.go:56","msg":"Connected to Supabase successfully!"}
+{"level":"warn","ts":"2026-11-06T18:31:48.036+0700","caller":"config/config.go:108","msg":"ไม่ได้กำหนดค่า ANYTHINGLLM_API_KEY ใน .env ระบบจะคืนเฉพาะพิกัดดวงดาวโดยไม่มีคำทำนายจาก AnythingLLM"}
+{"level":"info","ts":"2026-11-06T18:31:48.036+0700","caller":"config/config.go:50","msg":"กำลังเชื่อมต่อ Supabase","key_type":"Publishable/Anon Key"}
+{"level":"info","ts":"2026-11-06T18:31:48.037+0700","caller":"config/config.go:56","msg":"Connected to Supabase successfully!"}
+{"level":"warn","ts":"2026-11-06T18:31:48.037+0700","caller":"config/config.go:72","msg":"ไม่ได้กำหนดค่า JWT_SECRET ใน .env ระบบจะใช้ค่าเริ่มต้นชั่วคราว (ไม่แนะนำสำหรับ Production)"}
+{"level":"warn","ts":"2026-11-06T18:31:48.037+0700","caller":"config/config.go:108","msg":"ไม่ได้กำหนดค่า ANYTHINGLLM_API_KEY ใน .env ระบบจะคืนเฉพาะพิกัดดวงดาวโดยไม่มีคำทำนายจาก AnythingLLM"}

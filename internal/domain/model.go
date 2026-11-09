@@ -68,6 +68,55 @@ type HoraPredictResponse struct {
 	Warning       string `json:"warning,omitempty"`        // ข้อความแจ้งเตือนกรณีระบบ AI ทำนายไม่พร้อมใช้งาน (Graceful Fallback)
 }
 
+// HoraTransitPredictRequest รับค่าเพื่อคำนวณและพยากรณ์ดวงชะตาดาวจรประจำเดือน
+type HoraTransitPredictRequest struct {
+	// Username ใช้เป็นชื่ออ้างอิง Workspace บน AnythingLLM (หากไม่ส่งมาจะใช้ username จาก JWT แทน)
+	Username     string  `json:"username,omitempty"`
+	Year         int     `json:"year"`
+	Month        int     `json:"month"`
+	Day          int     `json:"day"`
+	HourThai     float64 `json:"hour_thai"`
+	TimeZone     float64 `json:"time_zone,omitempty"`
+	Latitude     float64 `json:"latitude"`
+	Longitude    float64 `json:"longitude"`
+	HouseSystem  string  `json:"house_system,omitempty"`
+	TransitYear  int     `json:"transit_year"`
+	TransitMonth int     `json:"transit_month"`
+}
+
+// HoraTransitCalculateReq โครงสร้างส่งไปยัง Lahiri Transit Dasha Prompt API
+type HoraTransitCalculateReq struct {
+	Year         int     `json:"year"`
+	Month        int     `json:"month"`
+	Day          int     `json:"day"`
+	HourThai     float64 `json:"hour_thai"`
+	TimeZone     float64 `json:"time_zone"`
+	Latitude     float64 `json:"latitude"`
+	Longitude    float64 `json:"longitude"`
+	HouseSystem  string  `json:"house_system"`
+	TransitYear  int     `json:"transit_year"`
+	TransitMonth int     `json:"transit_month"`
+}
+
+// HoraTransitPromptRequest ห่อ calculateReq ส่งไปยัง Lahiri Transit Dasha Prompt API
+type HoraTransitPromptRequest struct {
+	CalculateReq HoraTransitCalculateReq `json:"calculateReq"`
+}
+
+// HoraTransitPredictResponse ผลลัพธ์ที่ส่งกลับไปยัง Client ของ /api/v1/hora/transitpredict
+type HoraTransitPredictResponse struct {
+	Status           string `json:"status"`
+	NatalPrompt      string `json:"natal_prompt"`                 // พิกัดดาวชะตากำเนิดจาก Lahiri Prompt API
+	TransitPrompt    string `json:"transit_prompt"`               // พิกัดดาวจรและทศาจาก Lahiri Transit Dasha Prompt API
+	TransitMonth     int    `json:"transit_month"`                // เดือนของดาวจร (1-12)
+	TransitYear      int    `json:"transit_year"`                 // ปีของดาวจร (ค.ศ. หรือ พ.ศ.)
+	TransitMonthThai string `json:"transit_month_thai"`           // ชื่อเดือนและปีภาษาไทย (เช่น "ธันวาคม พ.ศ. 2569")
+	Prediction       string `json:"prediction"`                   // คำทำนายดาวจรประจำเดือนจาก AnythingLLM
+	WorkspaceSlug    string `json:"workspace_slug,omitempty"`     // Workspace ประจำผู้ใช้บน AnythingLLM
+	ThreadSlug       string `json:"thread_slug,omitempty"`        // Thread ประจำการทำนายดาวจรบน AnythingLLM
+	Warning          string `json:"warning,omitempty"`            // ข้อความแจ้งเตือนกรณีระบบ AI ทำนายไม่พร้อมใช้งาน (Graceful Fallback)
+}
+
 // AnythingLLMPrediction ผลลัพธ์จากการสนทนากับ AnythingLLM (1 User : 1 Workspace : 1 Thread)
 type AnythingLLMPrediction struct {
 	WorkspaceSlug string

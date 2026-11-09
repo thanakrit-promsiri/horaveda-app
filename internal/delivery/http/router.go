@@ -1,6 +1,7 @@
 package http
 
 import (
+	"fmt"
 	"net/http"
 
 	"horaveda-app/internal/delivery/http/handler"
@@ -29,6 +30,15 @@ func NewRouter(authHandler *handler.AuthHandler, authMiddleware *middleware.Auth
 	mux.HandleFunc("GET /api/v1/auth/verify", logRequest(authMiddleware.RequireAuth(authHandler.HandleVerifyAuth), "VerifyAuth"))
 	mux.HandleFunc("POST /api/v1/hora/predict", logRequest(authMiddleware.RequireAuth(authHandler.HandleHoraPredict), "HoraPredict"))
 	mux.HandleFunc("POST /api/v1/hora/prompt", logRequest(authMiddleware.RequireAuth(authHandler.HandleHoraPredict), "HoraPrompt"))
+	mux.HandleFunc("POST /api/v1/hora/transitpredict", logRequest(authMiddleware.RequireAuth(authHandler.HandleHoraTransitPredict), "HoraTransitPredict"))
+
+	// 12 เส้นครอบรายเดือน ประจำปี พ.ศ. 2570 (ค.ศ. 2027): POST /api/v1/hora/transitpredict_1 ถึง transitpredict_12
+	for m := 1; m <= 12; m++ {
+		month := m
+		pattern := fmt.Sprintf("POST /api/v1/hora/transitpredict_%d", month)
+		routeName := fmt.Sprintf("HoraTransitPredict_%d", month)
+		mux.HandleFunc(pattern, logRequest(authMiddleware.RequireAuth(authHandler.HandleHoraTransitPredictMonth(month)), routeName))
+	}
 
 	// Admin Routes (ต้องผ่านการตรวจสอบ Admin API Key ผ่าน Header X-Admin-Key หรือ Authorization Bearer)
 	adminKey := ""

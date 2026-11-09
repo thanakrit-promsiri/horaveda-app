@@ -102,6 +102,11 @@ func ThreadSlugFor(workspaceSlug string) string {
 	return workspaceSlug + anythingLLMThreadSuffix
 }
 
+// TransitThreadSlugFor กำหนด thread slug ประจำการพยากรณ์ดาวจร (ใช้ thread เดียวกันกับพื้นดวงชะตา: 1 User : 1 Workspace : 1 Thread)
+func TransitThreadSlugFor(workspaceSlug string) string {
+	return ThreadSlugFor(workspaceSlug)
+}
+
 // Ping ตรวจสอบการเชื่อมต่อไปยัง AnythingLLM ผ่าน GET /auth เพื่อดูว่า API Key ถูกต้องและเซิร์ฟเวอร์พร้อมใช้งานหรือไม่
 func (s *AnythingLLMService) Ping(ctx context.Context) error {
 	status, body, err := s.doJSON(ctx, http.MethodGet, "/auth", nil)
@@ -148,6 +153,37 @@ func (s *AnythingLLMService) PredictNatalChart(ctx context.Context, username, ch
 	message := BuildVedicPredictionPrompt(chartPrompt)
 	text, err := s.sendThreadChat(ctx, ref, message)
 	if err != nil {
+		// ถ้า AnythingLLM ตอบกลับว่าไม่พบ Workspace หรือ Thread (404 Not Found เช่น ถูกลบออกจาก AnythingLLM)
+		// ให้ล้าง Cache ตรวจสอบ/สร้างใหม่ทันที และลองส่งคำพยากรณ์ซ้ำอีก 1 ครั้ง (Auto-Recovery)
+		if isNotFoundError(err) {
+			s.Logger.Warnw("Workspace or thread not found in AnythingLLM (404), recreating and retrying prediction",
+				"username", username,
+				"stale_workspace_slug", ref.WorkspaceSlug,
+				"stale_thread_slug", ref.ThreadSlug,
+			)
+			s.threadCache.Delete(WorkspaceSlugFor(username))
+
+			newRef, ensureErr := s.ensureUserThread(ctx, username)
+			if ensureErr == nil {
+				retryText, retryErr := s.sendThreadChat(ctx, newRef, message)
+				if retryErr == nil {
+					s.Logger.Infow("AnythingLLM prediction retry succeeded after workspace/thread recreation",
+						"username", username,
+						"workspace_slug", newRef.WorkspaceSlug,
+						"thread_slug", newRef.ThreadSlug,
+					)
+					return &domain.AnythingLLMPrediction{
+						WorkspaceSlug: newRef.WorkspaceSlug,
+						ThreadSlug:    newRef.ThreadSlug,
+						TextResponse:  retryText,
+					}, nil
+				}
+				err = retryErr
+			} else {
+				err = ensureErr
+			}
+		}
+
 		s.Logger.Warnw("AnythingLLM chat execution failed",
 			"username", username,
 			"workspace_slug", ref.WorkspaceSlug,
@@ -155,8 +191,6 @@ func (s *AnythingLLMService) PredictNatalChart(ctx context.Context, username, ch
 			"elapsed_ms", time.Since(start).Milliseconds(),
 			"error", err,
 		)
-		// ล้าง Cache เฉพาะกรณีที่เกิด 404 Not Found (Workspace หรือ Thread หายไปจริงๆ จาก AnythingLLM)
-		// หากเป็น Error อื่น (เช่น 503 LLM ปลายทางไม่พร้อม) ห้ามลบ Cache เพื่อป้องกันการพยายามสร้าง Workspace ซ้ำ
 		var appErr *response.AppError
 		if errors.As(err, &appErr) && appErr.Code == http.StatusNotFound {
 			s.threadCache.Delete(WorkspaceSlugFor(username))
@@ -179,7 +213,98 @@ func (s *AnythingLLMService) PredictNatalChart(ctx context.Context, username, ch
 	}, nil
 }
 
-// ensureUserThread ตรวจสอบ/สร้าง Workspace และ Thread ประจำผู้ใช้ (1 User : 1 Workspace : 1 Thread)
+// PredictTransitChart ส่งข้อความ Prompt พยากรณ์ดาวจรประจำเดือน เข้า Thread ประจำตัวผู้ใช้ (ใช้ Thread เดียวกับพื้นดวงชะตากำเนิด: 1 User : 1 Workspace : 1 Thread)
+func (s *AnythingLLMService) PredictTransitChart(ctx context.Context, username, transitPrompt string) (*domain.AnythingLLMPrediction, error) {
+	if !s.IsEnabled() {
+		return nil, response.NewInternalServerError("ระบบยังไม่ได้ตั้งค่าการเชื่อมต่อ AnythingLLM", fmt.Errorf("ANYTHINGLLM_API_KEY is not configured"))
+	}
+	if strings.TrimSpace(transitPrompt) == "" {
+		return nil, response.NewBadGatewayError("ไม่ได้รับข้อมูลพยากรณ์ดาวจรสำหรับการส่งไปยัง AI", fmt.Errorf("empty transit prompt"))
+	}
+
+	start := time.Now()
+	expectedWS := WorkspaceSlugFor(username)
+	expectedThread := ThreadSlugFor(expectedWS)
+
+	s.Logger.Infow("Starting AnythingLLM transit prediction pipeline (sharing natal thread)",
+		"username", username,
+		"workspace_slug", expectedWS,
+		"thread_slug", expectedThread,
+		"base_url", s.BaseURL,
+		"prompt_len", len(transitPrompt),
+	)
+
+	ref, err := s.ensureUserThread(ctx, username)
+	if err != nil {
+		s.Logger.Warnw("AnythingLLM transit workspace/thread setup failed",
+			"username", username,
+			"elapsed_ms", time.Since(start).Milliseconds(),
+			"error", err,
+		)
+		return nil, err
+	}
+
+	text, err := s.sendThreadChat(ctx, ref, transitPrompt)
+	if err != nil {
+		if isNotFoundError(err) {
+			s.Logger.Warnw("Workspace or thread not found in AnythingLLM (404), recreating and retrying prediction",
+				"username", username,
+				"stale_workspace_slug", ref.WorkspaceSlug,
+				"stale_thread_slug", ref.ThreadSlug,
+			)
+			s.threadCache.Delete(expectedWS)
+
+			newRef, ensureErr := s.ensureUserThread(ctx, username)
+			if ensureErr == nil {
+				retryText, retryErr := s.sendThreadChat(ctx, newRef, transitPrompt)
+				if retryErr == nil {
+					s.Logger.Infow("AnythingLLM transit prediction retry succeeded after workspace/thread recreation",
+						"username", username,
+						"workspace_slug", newRef.WorkspaceSlug,
+						"thread_slug", newRef.ThreadSlug,
+					)
+					return &domain.AnythingLLMPrediction{
+						WorkspaceSlug: newRef.WorkspaceSlug,
+						ThreadSlug:    newRef.ThreadSlug,
+						TextResponse:  retryText,
+					}, nil
+				}
+				err = retryErr
+			} else {
+				err = ensureErr
+			}
+		}
+
+		s.Logger.Warnw("AnythingLLM transit chat execution failed",
+			"username", username,
+			"workspace_slug", ref.WorkspaceSlug,
+			"thread_slug", ref.ThreadSlug,
+			"elapsed_ms", time.Since(start).Milliseconds(),
+			"error", err,
+		)
+		var appErr *response.AppError
+		if errors.As(err, &appErr) && appErr.Code == http.StatusNotFound {
+			s.threadCache.Delete(expectedWS)
+		}
+		return nil, err
+	}
+
+	s.Logger.Infow("AnythingLLM transit prediction completed successfully",
+		"username", username,
+		"workspace_slug", ref.WorkspaceSlug,
+		"thread_slug", ref.ThreadSlug,
+		"response_len", len(text),
+		"elapsed_ms", time.Since(start).Milliseconds(),
+	)
+
+	return &domain.AnythingLLMPrediction{
+		WorkspaceSlug: ref.WorkspaceSlug,
+		ThreadSlug:    ref.ThreadSlug,
+		TextResponse:  text,
+	}, nil
+}
+
+// ensureUserThread ตรวจสอบ/สร้าง Workspace และ Thread ประจำตัวผู้ใช้ (1 User : 1 Workspace : 1 Thread ใช้ร่วมกันทั้งพื้นดวงชะตาและดาวจร)
 func (s *AnythingLLMService) ensureUserThread(ctx context.Context, username string) (*threadRef, error) {
 	expectedWS := WorkspaceSlugFor(username)
 	if expectedWS == "" {
@@ -222,8 +347,8 @@ func (s *AnythingLLMService) ensureUserThread(ctx context.Context, username stri
 		s.Logger.Infow("Reusing existing AnythingLLM workspace (skip creation)", "username", username, "workspace_slug", ws.Slug)
 	}
 
-	// 2. ตรวจสอบ Thread ประจำตัวผู้ใช้
-	threadSlug := ThreadSlugFor(expectedWS)
+	// 2. ตรวจสอบ Thread ประจำตัวผู้ใช้ (ใช้ Thread เดียวกันทั้งการพยากรณ์พื้นดวงชะตาและดาวจร)
+	threadSlug := ThreadSlugFor(ws.Slug)
 	if !hasThread(ws.Threads, threadSlug) {
 		// ตรวจสอบกับรายการ threads จาก /workspace/{slug}/threads อีกครั้งเผื่อใน cache ยังไม่ได้อัปเดต
 		latestThreads, err := s.listThreads(ctx, ws.Slug)
@@ -231,7 +356,7 @@ func (s *AnythingLLMService) ensureUserThread(ctx context.Context, username stri
 			s.Logger.Infow("Reusing existing AnythingLLM thread (skip creation)", "workspace_slug", ws.Slug, "thread_slug", threadSlug)
 			ws.Threads = latestThreads
 		} else {
-			createdSlug, err := s.createThread(ctx, ws.Slug, threadSlug, username)
+			createdSlug, err := s.createThread(ctx, ws.Slug, threadSlug, "พื้นดวงชะตา "+username)
 			if err != nil {
 				return nil, err
 			}
@@ -432,9 +557,9 @@ func (s *AnythingLLMService) createWorkspace(ctx context.Context, username strin
 }
 
 // createThread เรียก POST /workspace/{slug}/thread/new เพื่อสร้าง Thread ประจำตัวผู้ใช้
-func (s *AnythingLLMService) createThread(ctx context.Context, workspaceSlug, threadSlug, username string) (string, error) {
+func (s *AnythingLLMService) createThread(ctx context.Context, workspaceSlug, threadSlug, threadTitle string) (string, error) {
 	payload := map[string]interface{}{
-		"name": "พื้นดวงชะตา " + username,
+		"name": threadTitle,
 		"slug": threadSlug,
 	}
 	path := "/workspace/" + url.PathEscape(workspaceSlug) + "/thread/new"
@@ -489,6 +614,11 @@ func (s *AnythingLLMService) sendThreadChat(ctx context.Context, ref *threadRef,
 		return "", s.invalidResponseError("ส่งข้อความพยากรณ์", err, body)
 	}
 	if hasChatError(res.Error) {
+		errStr := fmt.Sprintf("%v", res.Error)
+		if strings.Contains(strings.ToLower(errStr), "not found") {
+			s.Logger.Warnw("AnythingLLM chat returned not found error", "workspace_slug", ref.WorkspaceSlug, "thread_slug", ref.ThreadSlug, "error", res.Error)
+			return "", response.NewNotFoundError("ไม่พบ Workspace หรือ Thread บน AnythingLLM", fmt.Errorf("anythingllm chat error: %s", errStr))
+		}
 		s.Logger.Errorw("AnythingLLM chat returned error", "workspace_slug", ref.WorkspaceSlug, "thread_slug", ref.ThreadSlug, "error", res.Error)
 		return "", response.NewBadGatewayError("AnythingLLM ไม่สามารถประมวลผลคำทำนายได้", fmt.Errorf("anythingllm chat error: %v", res.Error))
 	}
@@ -627,4 +757,16 @@ func truncateForLog(body []byte) string {
 		return string(body[:max]) + "...(truncated)"
 	}
 	return string(body)
+}
+
+func isNotFoundError(err error) bool {
+	if err == nil {
+		return false
+	}
+	var appErr *response.AppError
+	if errors.As(err, &appErr) && appErr.Code == http.StatusNotFound {
+		return true
+	}
+	errStr := strings.ToLower(err.Error())
+	return strings.Contains(errStr, "not found") || strings.Contains(errStr, "404")
 }

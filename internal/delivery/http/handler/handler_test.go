@@ -556,3 +556,266 @@ func TestHandleHoraPredict(t *testing.T) {
 		}
 	})
 }
+
+func TestHandleHoraTransitPredict(t *testing.T) {
+	validBody := `{"year": 1988, "month": 12, "day": 23, "hour_thai": 10.35, "latitude": 13.7563, "longitude": 100.5018, "transit_year": 2026, "transit_month": 12}`
+
+	t.Run("method not allowed", func(t *testing.T) {
+		h := setupHandler(&stubAuthRepo{})
+		req := httptest.NewRequest(http.MethodGet, "/api/v1/hora/transitpredict", nil)
+		rr := httptest.NewRecorder()
+
+		h.HandleHoraTransitPredict(rr, req)
+
+		if rr.Code != http.StatusMethodNotAllowed {
+			t.Errorf("expected 405, got %d", rr.Code)
+		}
+	})
+
+	t.Run("unauthorized when no user in context", func(t *testing.T) {
+		h := setupHandler(&stubAuthRepo{})
+		req := httptest.NewRequest(http.MethodPost, "/api/v1/hora/transitpredict", bytes.NewBufferString(validBody))
+		rr := httptest.NewRecorder()
+
+		h.HandleHoraTransitPredict(rr, req)
+
+		if rr.Code != http.StatusUnauthorized {
+			t.Errorf("expected 401, got %d", rr.Code)
+		}
+	})
+
+	t.Run("invalid JSON payload", func(t *testing.T) {
+		h := setupHandler(&stubAuthRepo{})
+		req := httptest.NewRequest(http.MethodPost, "/api/v1/hora/transitpredict", bytes.NewBufferString(`{bad-json`))
+		ctx := context.WithValue(req.Context(), "userClaims", map[string]interface{}{"username": "testuser01"})
+		rr := httptest.NewRecorder()
+
+		h.HandleHoraTransitPredict(rr, req.WithContext(ctx))
+
+		if rr.Code != http.StatusBadRequest {
+			t.Errorf("expected 400, got %d", rr.Code)
+		}
+	})
+
+	t.Run("invalid field ranges", func(t *testing.T) {
+		h := setupHandler(&stubAuthRepo{})
+		cases := []string{
+			`{"year": 0, "month": 12, "day": 23, "hour_thai": 10.35, "latitude": 13.7563, "longitude": 100.5018, "transit_year": 2026, "transit_month": 12}`,
+			`{"year": 1988, "month": 13, "day": 23, "hour_thai": 10.35, "latitude": 13.7563, "longitude": 100.5018, "transit_year": 2026, "transit_month": 12}`,
+			`{"year": 1988, "month": 12, "day": 23, "hour_thai": 10.35, "latitude": 13.7563, "longitude": 100.5018, "transit_year": 0, "transit_month": 12}`,
+			`{"year": 1988, "month": 12, "day": 23, "hour_thai": 10.35, "latitude": 13.7563, "longitude": 100.5018, "transit_year": 2026, "transit_month": 13}`,
+			`{"year": 1988, "month": 12, "day": 23, "hour_thai": 10.35, "latitude": 13.7563, "longitude": 100.5018, "transit_year": 2026, "transit_month": 0}`,
+		}
+		for _, body := range cases {
+			req := httptest.NewRequest(http.MethodPost, "/api/v1/hora/transitpredict", bytes.NewBufferString(body))
+			ctx := context.WithValue(req.Context(), "userClaims", map[string]interface{}{"username": "testuser01"})
+			rr := httptest.NewRecorder()
+			h.HandleHoraTransitPredict(rr, req.WithContext(ctx))
+			if rr.Code != http.StatusBadRequest {
+				t.Errorf("expected 400 for body %s, got %d", body, rr.Code)
+			}
+		}
+	})
+
+	t.Run("username mismatch with token returns 403", func(t *testing.T) {
+		h := setupHandler(&stubAuthRepo{})
+		body := `{"username": "otheruser", "year": 1988, "month": 12, "day": 23, "hour_thai": 10.35, "latitude": 13.7563, "longitude": 100.5018, "transit_year": 2026, "transit_month": 12}`
+		req := httptest.NewRequest(http.MethodPost, "/api/v1/hora/transitpredict", bytes.NewBufferString(body))
+		ctx := context.WithValue(req.Context(), "userClaims", map[string]interface{}{"username": "testuser01"})
+		rr := httptest.NewRecorder()
+
+		h.HandleHoraTransitPredict(rr, req.WithContext(ctx))
+
+		if rr.Code != http.StatusForbidden {
+			t.Errorf("expected 403, got %d", rr.Code)
+		}
+	})
+
+	mockBothPromptsClient := func(chatCalls *int) *http.Client {
+		return &http.Client{
+			Transport: roundTripFunc(func(req *http.Request) (*http.Response, error) {
+				rr := httptest.NewRecorder()
+				rr.Header().Set("Content-Type", "application/json")
+				path := req.URL.Path
+				switch {
+				case path == "/api/v1/hora/prompt":
+					_, _ = rr.Write([]byte(`{"status":"success","prompt":"[Natal Prompt]"}`))
+				case path == "/api/v1/hora/transitdasha_prompt":
+					_, _ = rr.Write([]byte(`{"status":"success","prompt":"[Transit Prompt]"}`))
+				case req.Method == http.MethodGet && path == "/api/v1/workspace/testuser01":
+					_, _ = rr.Write([]byte(`{"workspace":[{"id":1,"slug":"testuser01","threads":[{"slug":"testuser01-hora"}]}]}`))
+				case strings.HasSuffix(path, "/chat"):
+					*chatCalls++
+					_, _ = rr.Write([]byte(`{"id":"1","type":"textResponse","textResponse":"คำทำนายดาวจรประจำเดือน","close":true,"error":null}`))
+				default:
+					rr.WriteHeader(http.StatusNotFound)
+				}
+				return rr.Result(), nil
+			}),
+		}
+	}
+
+	t.Run("success with AnythingLLM returns prediction and transit month thai", func(t *testing.T) {
+		chatCalls := 0
+		client := mockBothPromptsClient(&chatCalls)
+		h := setupHandler(&stubAuthRepo{})
+		h.HoraService = service.NewHoraServiceWithTransit(
+			"http://localhost:8083/api/v1/hora/prompt",
+			"http://localhost:8083/api/v1/hora/transitdasha_prompt",
+			h.Logger,
+			client,
+		)
+		h.AnythingLLMService = service.NewAnythingLLMService("http://localhost:3001/api/v1", "llm-key", 0, h.Logger, client)
+
+		req := httptest.NewRequest(http.MethodPost, "/api/v1/hora/transitpredict", bytes.NewBufferString(validBody))
+		ctx := context.WithValue(req.Context(), "userClaims", map[string]interface{}{"username": "testuser01"})
+		rr := httptest.NewRecorder()
+
+		h.HandleHoraTransitPredict(rr, req.WithContext(ctx))
+
+		if rr.Code != http.StatusOK {
+			t.Fatalf("expected 200, got %d: %s", rr.Code, rr.Body.String())
+		}
+
+		var res struct {
+			Success bool                             `json:"success"`
+			Message string                           `json:"message"`
+			Data    domain.HoraTransitPredictResponse `json:"data"`
+		}
+		if err := json.Unmarshal(rr.Body.Bytes(), &res); err != nil {
+			t.Fatalf("invalid JSON: %v", err)
+		}
+		if res.Data.NatalPrompt != "[Natal Prompt]" || res.Data.TransitPrompt != "[Transit Prompt]" {
+			t.Errorf("unexpected prompts: %+v", res.Data)
+		}
+		if res.Data.TransitMonthThai != "เดือนธันวาคม พ.ศ. 2569" {
+			t.Errorf("expected 'เดือนธันวาคม พ.ศ. 2569', got %q", res.Data.TransitMonthThai)
+		}
+		if res.Data.Prediction != "คำทำนายดาวจรประจำเดือน" {
+			t.Errorf("expected prediction text, got %q", res.Data.Prediction)
+		}
+		if res.Data.WorkspaceSlug != "testuser01" || res.Data.ThreadSlug != "testuser01-hora" {
+			t.Errorf("unexpected slug/thread: %s / %s", res.Data.WorkspaceSlug, res.Data.ThreadSlug)
+		}
+		if chatCalls != 1 {
+			t.Errorf("expected 1 chat call, got %d", chatCalls)
+		}
+	})
+
+	t.Run("AnythingLLM failure falls back gracefully with 200 OK and warning", func(t *testing.T) {
+		client := &http.Client{
+			Transport: roundTripFunc(func(req *http.Request) (*http.Response, error) {
+				rr := httptest.NewRecorder()
+				rr.Header().Set("Content-Type", "application/json")
+				path := req.URL.Path
+				if path == "/api/v1/hora/prompt" {
+					_, _ = rr.Write([]byte(`{"status":"success","prompt":"[Natal Prompt]"}`))
+					return rr.Result(), nil
+				}
+				if path == "/api/v1/hora/transitdasha_prompt" {
+					_, _ = rr.Write([]byte(`{"status":"success","prompt":"[Transit Prompt]"}`))
+					return rr.Result(), nil
+				}
+				return nil, errors.New("connection refused to AnythingLLM")
+			}),
+		}
+
+		h := setupHandler(&stubAuthRepo{})
+		h.HoraService = service.NewHoraServiceWithTransit(
+			"http://localhost:8083/api/v1/hora/prompt",
+			"http://localhost:8083/api/v1/hora/transitdasha_prompt",
+			h.Logger,
+			client,
+		)
+		h.AnythingLLMService = service.NewAnythingLLMService("http://localhost:3001/api/v1", "llm-key", 0, h.Logger, client)
+
+		req := httptest.NewRequest(http.MethodPost, "/api/v1/hora/transitpredict", bytes.NewBufferString(validBody))
+		ctx := context.WithValue(req.Context(), "userClaims", map[string]interface{}{"username": "testuser01"})
+		rr := httptest.NewRecorder()
+
+		h.HandleHoraTransitPredict(rr, req.WithContext(ctx))
+
+		if rr.Code != http.StatusOK {
+			t.Fatalf("expected 200 OK on fallback, got %d", rr.Code)
+		}
+
+		var res struct {
+			Success bool                             `json:"success"`
+			Data    domain.HoraTransitPredictResponse `json:"data"`
+		}
+		if err := json.Unmarshal(rr.Body.Bytes(), &res); err != nil {
+			t.Fatalf("invalid JSON: %v", err)
+		}
+		if res.Data.Warning == "" {
+			t.Error("expected non-empty warning message")
+		}
+		if res.Data.NatalPrompt != "[Natal Prompt]" || res.Data.TransitPrompt != "[Transit Prompt]" {
+			t.Errorf("prompts should be preserved: %+v", res.Data)
+		}
+	})
+
+	t.Run("HandleHoraTransitPredictMonth overrides and fixes transit_year=2027 and month=1", func(t *testing.T) {
+		client := &http.Client{
+			Transport: roundTripFunc(func(req *http.Request) (*http.Response, error) {
+				rr := httptest.NewRecorder()
+				rr.Header().Set("Content-Type", "application/json")
+				path := req.URL.Path
+				switch {
+				case path == "/api/v1/hora/prompt":
+					_, _ = rr.Write([]byte(`{"status":"success","prompt":"[Natal Prompt]"}`))
+				case path == "/api/v1/hora/transitdasha_prompt":
+					_, _ = rr.Write([]byte(`{"status":"success","prompt":"[Transit Prompt Month 1]"}`))
+				case req.Method == http.MethodGet && path == "/api/v1/workspace/testuser01":
+					_, _ = rr.Write([]byte(`{"workspace":[{"id":1,"slug":"testuser01","threads":[{"slug":"testuser01-hora"}]}]}`))
+				case strings.HasSuffix(path, "/chat"):
+					_, _ = rr.Write([]byte(`{"id":"1","type":"textResponse","textResponse":"คำทำนายเดือนมกราคม 2570","close":true,"error":null}`))
+				default:
+					rr.WriteHeader(http.StatusNotFound)
+				}
+				return rr.Result(), nil
+			}),
+		}
+
+		h := setupHandler(&stubAuthRepo{})
+		h.HoraService = service.NewHoraServiceWithTransit(
+			"http://localhost:8083/api/v1/hora/prompt",
+			"http://localhost:8083/api/v1/hora/transitdasha_prompt",
+			h.Logger,
+			client,
+		)
+		h.AnythingLLMService = service.NewAnythingLLMService("http://localhost:3001/api/v1", "llm-key", 0, h.Logger, client)
+
+		// ส่ง body โดยไม่จำเป็นต้องระบุ transit_year หรือ transit_month (หรือส่งมาก็จะถูก override เป็น 2027 และ 1)
+		body := `{"year": 1988, "month": 12, "day": 23, "hour_thai": 10.35, "latitude": 13.7563, "longitude": 100.5018, "transit_year": 1999, "transit_month": 9}`
+		req := httptest.NewRequest(http.MethodPost, "/api/v1/hora/transitpredict_1", bytes.NewBufferString(body))
+		ctx := context.WithValue(req.Context(), "userClaims", map[string]interface{}{"username": "testuser01"})
+		rr := httptest.NewRecorder()
+
+		handlerFunc := h.HandleHoraTransitPredictMonth(1)
+		handlerFunc(rr, req.WithContext(ctx))
+
+		if rr.Code != http.StatusOK {
+			t.Fatalf("expected 200, got %d: %s", rr.Code, rr.Body.String())
+		}
+
+		var res struct {
+			Success bool                             `json:"success"`
+			Data    domain.HoraTransitPredictResponse `json:"data"`
+		}
+		if err := json.Unmarshal(rr.Body.Bytes(), &res); err != nil {
+			t.Fatalf("invalid JSON: %v", err)
+		}
+		if res.Data.TransitYear != 2027 {
+			t.Errorf("expected transit_year 2027, got %d", res.Data.TransitYear)
+		}
+		if res.Data.TransitMonth != 1 {
+			t.Errorf("expected transit_month 1, got %d", res.Data.TransitMonth)
+		}
+		if res.Data.TransitMonthThai != "เดือนมกราคม พ.ศ. 2570" {
+			t.Errorf("expected 'เดือนมกราคม พ.ศ. 2570', got %q", res.Data.TransitMonthThai)
+		}
+		if res.Data.ThreadSlug != "testuser01-hora" {
+			t.Errorf("expected shared thread testuser01-hora, got %s", res.Data.ThreadSlug)
+		}
+	})
+}
