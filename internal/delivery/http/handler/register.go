@@ -46,19 +46,17 @@ func (h *AuthHandler) HandleSerialRegister(w http.ResponseWriter, r *http.Reques
 		return
 	}
 
-	secureCookie := false
-	if h.Cfg != nil {
-		secureCookie = h.Cfg.CookieSecure
-	}
-
 	cookie := http.Cookie{
 		Name:     "auth_token",
 		Value:    token,
 		Path:     "/",
 		HttpOnly: true,
-		Secure:   secureCookie,
+		Secure:   true,
 		SameSite: http.SameSiteLaxMode,
 		Expires:  time.Now().Add(24 * time.Hour),
+	}
+	if h.Cfg != nil && !h.Cfg.CookieSecure {
+		cookie.Secure = h.Cfg.CookieSecure
 	}
 	http.SetCookie(w, &cookie)
 

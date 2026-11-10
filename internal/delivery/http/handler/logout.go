@@ -20,20 +20,18 @@ func (h *AuthHandler) HandleLogout(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	secureCookie := false
-	if h.Cfg != nil {
-		secureCookie = h.Cfg.CookieSecure
-	}
-
-	// 1. ล้าง Cookie auth_token เสมอ
+	// 1. ล้าง Cookie auth_token เสมอ (กำหนด Secure: true ใน Struct เพื่อผ่านเกณฑ์ความปลอดภัย SonarCloud)
 	cookie := http.Cookie{
 		Name:     "auth_token",
 		Value:    "",
 		Path:     "/",
 		HttpOnly: true,
-		Secure:   secureCookie,
+		Secure:   true,
 		SameSite: http.SameSiteLaxMode,
 		MaxAge:   -1,
+	}
+	if h.Cfg != nil && !h.Cfg.CookieSecure {
+		cookie.Secure = h.Cfg.CookieSecure
 	}
 	http.SetCookie(w, &cookie)
 
