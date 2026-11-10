@@ -2,20 +2,38 @@ package handler
 
 import (
 	"horaveda-app/internal/config"
+	"horaveda-app/internal/domain"
 	"horaveda-app/internal/service"
 
 	"go.uber.org/zap"
 )
 
 type AuthHandler struct {
-	AuthService        *service.AuthService
-	HoraService        *service.HoraService
-	AnythingLLMService *service.AnythingLLMService // เชื่อมต่อ AnythingLLM สำหรับพยากรณ์พื้นดวง (1 User : 1 Workspace : 1 Thread)
+	AuthService        domain.AuthUsecase
+	HoraService        domain.HoraUsecase
+	AnythingLLMService domain.AnythingLLMUsecase // เชื่อมต่อ AnythingLLM สำหรับพยากรณ์พื้นดวง (1 User : 1 Workspace : 1 Thread)
 	Logger             *zap.SugaredLogger
-	Cfg                *config.Config // <-- เพิ่มฟิลด์ config ตรงนี้
+	Cfg                *config.Config
 }
 
-func NewAuthHandler(authService *service.AuthService, logger *zap.SugaredLogger, cfg *config.Config) *AuthHandler {
+// NewAuthHandlerWithServices สร้าง Handler โดยรับ Dependencies ที่ฉีด (Inject) มาจากภายนอกตามหลัก Clean Architecture
+func NewAuthHandlerWithServices(
+	authService domain.AuthUsecase,
+	horaService domain.HoraUsecase,
+	anythingLLMService domain.AnythingLLMUsecase,
+	logger *zap.SugaredLogger,
+	cfg *config.Config,
+) *AuthHandler {
+	return &AuthHandler{
+		AuthService:        authService,
+		HoraService:        horaService,
+		AnythingLLMService: anythingLLMService,
+		Logger:             logger,
+		Cfg:                cfg,
+	}
+}
+
+func NewAuthHandler(authService domain.AuthUsecase, logger *zap.SugaredLogger, cfg *config.Config) *AuthHandler {
 	horaAPIURL := ""
 	horaTransitAPIURL := ""
 	anythingLLMURL, anythingLLMKey := "", ""
@@ -29,11 +47,11 @@ func NewAuthHandler(authService *service.AuthService, logger *zap.SugaredLogger,
 			anythingLLMTimeout = cfg.AnythingLLMTimeout
 		}
 	}
-	return &AuthHandler{
-		AuthService:        authService,
-		HoraService:        service.NewHoraServiceWithTransit(horaAPIURL, horaTransitAPIURL, logger, nil),
-		AnythingLLMService: service.NewAnythingLLMService(anythingLLMURL, anythingLLMKey, anythingLLMTimeout, logger, nil),
-		Logger:             logger,
-		Cfg:                cfg, // <-- กำหนดค่า config
-	}
+	return NewAuthHandlerWithServices(
+		authService,
+		service.NewHoraServiceWithTransit(horaAPIURL, horaTransitAPIURL, logger, nil),
+		service.NewAnythingLLMService(anythingLLMURL, anythingLLMKey, anythingLLMTimeout, logger, nil),
+		logger,
+		cfg,
+	)
 }

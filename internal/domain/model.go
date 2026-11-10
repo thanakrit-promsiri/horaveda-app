@@ -1,5 +1,46 @@
 package domain
 
+import "context"
+
+// AuthRepository กำหนดสัญญา (Contract) สำหรับจัดการข้อมูลผู้ใช้และ Serial Key ในฐานข้อมูลและระบบยืนยันตัวตน
+type AuthRepository interface {
+	FindSerialKey(serialKey string) (*SerialKey, error)
+	FindUserByUsername(username string) (*User, error)
+	CreateUser(username string) (*User, error)
+	DeleteUser(userID int) error
+	CreateSupabaseAuthUser(email, password, username string) (string, error)
+	DeleteSupabaseAuthUser(authUserID string) error
+	DeleteSupabaseAuthUserByEmail(email string) error
+	UpdateSerialKeyStatus(keyID int, userID int) error
+	RollbackSerialKeyStatus(keyID int) error
+	RevokeSerialKeysByUserID(userID int) ([]SerialKey, error)
+	GetAllSerialKeys() ([]map[string]interface{}, error)
+}
+
+// AuthUsecase กำหนดสัญญาสำหรับ Business Logic ด้านการยืนยันตัวตนและจัดการ Serial Key
+type AuthUsecase interface {
+	RegisterWithSerial(username, serialKey string) (string, error)
+	RevokeUserAndSerial(username string) (*RevokeUserResponse, error)
+	GetAllKeys() ([]map[string]interface{}, error)
+	GetSerialKeysStatus() (*SerialKeyStatusResponse, error)
+	VerifyTokenMap(tokenString string) (map[string]interface{}, error)
+}
+
+// HoraUsecase กำหนดสัญญาสำหรับคำนวณพิกัดดวงดาวพื้นดวงกำเนิดและดาวจรผ่าน Lahiri API
+type HoraUsecase interface {
+	GetHoraPrompt(ctx context.Context, req HoraPredictRequest) (*HoraPromptResponse, error)
+	GetHoraTransitPrompt(ctx context.Context, req HoraTransitPredictRequest) (*HoraPromptResponse, error)
+	GetBothPrompts(ctx context.Context, req HoraTransitPredictRequest) (*HoraPromptResponse, *HoraPromptResponse, error)
+}
+
+// AnythingLLMUsecase กำหนดสัญญาสำหรับเชื่อมต่อ AI พยากรณ์ดวงชะตาบน AnythingLLM (1 User : 1 Workspace : 1 Shared Thread)
+type AnythingLLMUsecase interface {
+	IsEnabled() bool
+	Ping(ctx context.Context) error
+	PredictNatalChart(ctx context.Context, username, chartPrompt string) (*AnythingLLMPrediction, error)
+	PredictTransitChart(ctx context.Context, username, assembledPrompt string) (*AnythingLLMPrediction, error)
+}
+
 type RegisterRequest struct {
 	Username  string `json:"username"`
 	SerialKey string `json:"serial_key"`

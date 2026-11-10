@@ -77,7 +77,7 @@ func (h *AuthHandler) HandleHoraPredict(w http.ResponseWriter, r *http.Request) 
 	}
 
 	// ส่งพิกัดดวงดาวเข้า AnythingLLM (1 User : 1 Workspace : 1 Thread) เพื่อรับคำทำนายพื้นดวง
-	if !h.AnythingLLMService.IsEnabled() {
+	if h.AnythingLLMService == nil || !h.AnythingLLMService.IsEnabled() {
 		h.Logger.Warnw("AnythingLLM is not configured, returning chart prompt only", "username", username)
 		response.Success(w, http.StatusOK, "คำนวณข้อมูลพื้นดวงชะตาสำเร็จ", resp)
 		return

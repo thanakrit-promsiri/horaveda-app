@@ -57,7 +57,7 @@ func (h *AuthHandler) HandleLogout(w http.ResponseWriter, r *http.Request) {
 		}
 
 		if tokenValue != "" {
-			if claims, err := h.AuthService.VerifyToken(tokenValue); err == nil {
+			if claims, err := h.AuthService.VerifyTokenMap(tokenValue); err == nil {
 				if u, exists := claims["username"].(string); exists {
 					claimsUsername = strings.TrimSpace(u)
 				}

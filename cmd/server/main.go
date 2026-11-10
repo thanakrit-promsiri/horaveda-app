@@ -25,12 +25,14 @@ func main() {
 	// บันทึก Log แจ้งเตือนว่าระบบกำลังเริ่มต้นโหลดคอมโพเนนต์
 	cfg.Logger.Infow("กำลังเริ่มต้นระบบและเชื่อมต่อ Dependency Injection")
 
-	// สร้าง Repository และ Service ตามลำดับ (Dependency Injection)
+	// สร้าง Repository และ Service ตามลำดับ (Dependency Injection ตามหลัก Clean Architecture)
 	authRepo := repository.NewAuthRepository(cfg.SupabaseClient, cfg.Logger)
 	authService := service.NewAuthService(authRepo, cfg.Logger, cfg.JWTSecret)
+	horaService := service.NewHoraServiceWithTransit(cfg.HoraAPIURL, cfg.HoraTransitAPIURL, cfg.Logger, nil)
+	anythingLLMService := service.NewAnythingLLMService(cfg.AnythingLLMAPIURL, cfg.AnythingLLMAPIKey, cfg.AnythingLLMTimeout, cfg.Logger, nil)
 
-	// ส่ง cfg เข้าไปใน NewAuthHandler เพื่อให้ Handler เข้าถึงค่า Config ได้
-	authHandler := handler.NewAuthHandler(authService, cfg.Logger, cfg)
+	// ฉีด (Inject) Services ทั้งหมดเข้าไปใน Handler โดยไม่ให้ Handler สร้าง Service เอง
+	authHandler := handler.NewAuthHandlerWithServices(authService, horaService, anythingLLMService, cfg.Logger, cfg)
 
 	// สร้าง Instance ของ Auth Middleware พร้อมส่ง cfg.Logger เข้าไป
 	authMiddleware := middleware.NewAuthMiddleware(authService, cfg.Logger)
@@ -73,17 +75,17 @@ func main() {
 	// ตรวจสอบสถานะการเชื่อมต่อ AnythingLLM เมื่อเริ่มต้นระบบ (แบบ Non-blocking ใน Background)
 	go func() {
 		time.Sleep(500 * time.Millisecond)
-		if authHandler.AnythingLLMService != nil && authHandler.AnythingLLMService.IsEnabled() {
+		if anythingLLMService != nil && anythingLLMService.IsEnabled() {
 			probeCtx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
 			defer cancel()
-			if err := authHandler.AnythingLLMService.Ping(probeCtx); err != nil {
+			if err := anythingLLMService.Ping(probeCtx); err != nil {
 				cfg.Logger.Warnw("AnythingLLM is unreachable at startup (AI predictions will fall back to prompt-only until service is up)",
-					"url", authHandler.AnythingLLMService.BaseURL,
+					"url", anythingLLMService.BaseURL,
 					"error", err,
 					"troubleshooting", "1) ตรวจสอบว่า AnythingLLM เปิดทำงานอยู่หรือไม่ 2) ตรวจสอบว่าเปิดโหมด Developer API และใช้พอร์ต 3001 หรือไม่",
 				)
 			} else {
-				cfg.Logger.Infow("AnythingLLM connection verified successfully", "url", authHandler.AnythingLLMService.BaseURL)
+				cfg.Logger.Infow("AnythingLLM connection verified successfully", "url", anythingLLMService.BaseURL)
 			}
 		}
 	}()

@@ -7,7 +7,7 @@ import (
 	"net/http"
 	"strings"
 
-	"horaveda-app/internal/service"
+	"horaveda-app/internal/domain"
 	"horaveda-app/pkg/response"
 
 	"github.com/golang-jwt/jwt/v5"
@@ -38,11 +38,11 @@ func GetUserClaims(ctx context.Context) (jwt.MapClaims, bool) {
 }
 
 type AuthMiddleware struct {
-	AuthService *service.AuthService
+	AuthService domain.AuthUsecase
 	Logger      *zap.SugaredLogger
 }
 
-func NewAuthMiddleware(authService *service.AuthService, logger *zap.SugaredLogger) *AuthMiddleware {
+func NewAuthMiddleware(authService domain.AuthUsecase, logger *zap.SugaredLogger) *AuthMiddleware {
 	return &AuthMiddleware{
 		AuthService: authService,
 		Logger:      logger,
@@ -67,8 +67,8 @@ func (m *AuthMiddleware) RequireAuth(next http.HandlerFunc) http.HandlerFunc {
 			return
 		}
 
-		// 2. รับ claims กลับมาจากการ Verify
-		claims, err := m.AuthService.VerifyToken(tokenValue)
+		// 2. รับ claims กลับมาจากการ Verify ผ่านสัญญา domain.AuthUsecase
+		rawClaims, err := m.AuthService.VerifyTokenMap(tokenValue)
 		if err != nil {
 			m.Logger.Warnw("Authentication failed: invalid or expired token", "error", err, "remote_addr", r.RemoteAddr)
 			var appErr *response.AppError
@@ -79,6 +79,8 @@ func (m *AuthMiddleware) RequireAuth(next http.HandlerFunc) http.HandlerFunc {
 			response.Error(w, http.StatusUnauthorized, "Token ไม่ถูกต้องหรือหมดอายุ")
 			return
 		}
+
+		claims := jwt.MapClaims(rawClaims)
 
 		m.Logger.Infow("Authentication successful", "path", r.URL.Path)
 

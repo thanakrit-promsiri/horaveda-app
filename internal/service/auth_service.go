@@ -5,7 +5,6 @@ import (
 	"time"
 
 	"horaveda-app/internal/domain"
-	"horaveda-app/internal/repository"
 	"horaveda-app/pkg/response"
 
 	"github.com/golang-jwt/jwt/v5"
@@ -13,12 +12,12 @@ import (
 )
 
 type AuthService struct {
-	Repo      repository.AuthRepository
+	Repo      domain.AuthRepository
 	Logger    *zap.SugaredLogger
 	JWTSecret []byte
 }
 
-func NewAuthService(repo repository.AuthRepository, log *zap.SugaredLogger, jwtSecret []byte) *AuthService {
+func NewAuthService(repo domain.AuthRepository, log *zap.SugaredLogger, jwtSecret []byte) *AuthService {
 	return &AuthService{
 		Repo:      repo,
 		Logger:    log,
@@ -255,4 +254,13 @@ func (s *AuthService) VerifyToken(tokenString string) (jwt.MapClaims, error) {
 	}
 
 	return nil, response.NewUnauthorizedError("Invalid token", nil)
+}
+
+// VerifyTokenMap ตรวจสอบ JWT Token และคืนค่า Claims ในรูปแบบ map[string]interface{} ตามสัญญา domain.AuthUsecase
+func (s *AuthService) VerifyTokenMap(tokenString string) (map[string]interface{}, error) {
+	claims, err := s.VerifyToken(tokenString)
+	if err != nil {
+		return nil, err
+	}
+	return map[string]interface{}(claims), nil
 }

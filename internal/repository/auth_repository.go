@@ -14,19 +14,8 @@ import (
 	"go.uber.org/zap"
 )
 
-type AuthRepository interface {
-	FindSerialKey(serialKey string) (*domain.SerialKey, error)
-	FindUserByUsername(username string) (*domain.User, error)
-	CreateUser(username string) (*domain.User, error)
-	DeleteUser(userID int) error
-	CreateSupabaseAuthUser(email, password, username string) (string, error)
-	DeleteSupabaseAuthUser(authUserID string) error
-	DeleteSupabaseAuthUserByEmail(email string) error
-	UpdateSerialKeyStatus(keyID int, userID int) error
-	RollbackSerialKeyStatus(keyID int) error
-	RevokeSerialKeysByUserID(userID int) ([]domain.SerialKey, error)
-	GetAllSerialKeys() ([]map[string]interface{}, error)
-}
+// AuthRepository เป็น Type Alias ชี้ไปยัง domain.AuthRepository ตามหลัก Clean Architecture (Dependency Inversion)
+type AuthRepository = domain.AuthRepository
 
 type authRepository struct {
 	client *supabase.Client
