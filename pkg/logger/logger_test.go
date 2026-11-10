@@ -28,9 +28,9 @@ func TestDailyRotateWriter_DayTransition(t *testing.T) {
 	simulatedTime := day1
 
 	w := NewDailyRotateWriter(tmpDir, "testapp", 10, 5, 7, false)
-	w.nowFunc = func() time.Time {
+	w.SetNowFunc(func() time.Time {
 		return simulatedTime
-	}
+	})
 	defer w.Close()
 
 	// 1. เขียน Log ในวันแรก (Day 1)

@@ -31,6 +31,8 @@ type DailyRotateWriter struct {
 	currentLogger *lumberjack.Logger // lumberjack instance ของวันนี้
 	activeFile    *os.File           // logs/app.log ประจำวันล่าสุด
 	nowFunc       func() time.Time   // สำหรับ mock เวลาใน unit test
+	stopTimer     *time.Timer        // จับเวลาเที่ยงคืน
+	closed        bool               // สถานะการปิด writer
 }
 
 // NewDailyRotateWriter สร้างตัวจัดการ Daily Rotate Log
@@ -70,10 +72,20 @@ func NewDailyRotateWriter(dir, prefix string, maxSize, maxBackups, maxAge int, c
 }
 
 func (w *DailyRotateWriter) now() time.Time {
-	if w.nowFunc != nil {
-		return w.nowFunc()
+	w.mu.Lock()
+	fn := w.nowFunc
+	w.mu.Unlock()
+	if fn != nil {
+		return fn()
 	}
 	return time.Now()
+}
+
+// SetNowFunc กำหนดฟังก์ชันเวลาสำหรับทดสอบ
+func (w *DailyRotateWriter) SetNowFunc(fn func() time.Time) {
+	w.mu.Lock()
+	defer w.mu.Unlock()
+	w.nowFunc = fn
 }
 
 // Write บันทึก Log ลงทั้งไฟล์ประจำวัน (app-YYYY-MM-DD.log) และไฟล์ปัจจุบัน (app.log)
@@ -109,10 +121,15 @@ func (w *DailyRotateWriter) Sync() error {
 	return nil
 }
 
-// Close ปิดไฟล์และ lumberjack instance
+// Close ปิดไฟล์และ lumberjack instance พร้อมหยุดตัวจับเวลา
 func (w *DailyRotateWriter) Close() error {
 	w.mu.Lock()
 	defer w.mu.Unlock()
+	w.closed = true
+	if w.stopTimer != nil {
+		w.stopTimer.Stop()
+		w.stopTimer = nil
+	}
 	if w.activeFile != nil {
 		_ = w.activeFile.Close()
 		w.activeFile = nil
@@ -167,23 +184,41 @@ func (w *DailyRotateWriter) scheduleNextMidnight() {
 	nextMidnight := time.Date(now.Year(), now.Month(), now.Day()+1, 0, 0, 0, 0, now.Location())
 	duration := nextMidnight.Sub(now)
 
-	time.AfterFunc(duration, func() {
+	w.mu.Lock()
+	if w.closed {
+		w.mu.Unlock()
+		return
+	}
+	if w.stopTimer != nil {
+		w.stopTimer.Stop()
+	}
+	w.stopTimer = time.AfterFunc(duration, func() {
 		w.mu.Lock()
 		defer w.mu.Unlock()
+		if w.closed {
+			return
+		}
 		today := w.now().Format("2006-01-02")
 		if today != w.currentDay {
 			_ = w.rotateToDay(today)
 		}
 		w.scheduleNextMidnight()
 	})
+	w.mu.Unlock()
 }
 
 func (w *DailyRotateWriter) cleanOldLogs() {
-	if w.maxAge <= 0 {
+	w.mu.Lock()
+	maxAge := w.maxAge
+	dir := w.dir
+	prefix := w.prefix
+	w.mu.Unlock()
+
+	if maxAge <= 0 {
 		return
 	}
-	cutoff := w.now().AddDate(0, 0, -w.maxAge)
-	entries, err := os.ReadDir(w.dir)
+	cutoff := w.now().AddDate(0, 0, -maxAge)
+	entries, err := os.ReadDir(dir)
 	if err != nil {
 		return
 	}
@@ -192,7 +227,7 @@ func (w *DailyRotateWriter) cleanOldLogs() {
 			continue
 		}
 		name := entry.Name()
-		if !strings.HasPrefix(name, w.prefix+"-") {
+		if !strings.HasPrefix(name, prefix+"-") {
 			continue
 		}
 		info, err := entry.Info()
@@ -200,7 +235,7 @@ func (w *DailyRotateWriter) cleanOldLogs() {
 			continue
 		}
 		if info.ModTime().Before(cutoff) {
-			_ = os.Remove(filepath.Join(w.dir, name))
+			_ = os.Remove(filepath.Join(dir, name))
 		}
 	}
 }
