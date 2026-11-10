@@ -1,19 +1,22 @@
-name: Go CI
+name: Go CI & SonarCloud
 
 on:
   push:
     branches: [ "main", "master", "develop" ]
   pull_request:
+    types: [ opened, synchronize, reopened ]
     branches: [ "main", "master", "develop" ]
 
 jobs:
-  test-and-build:
-    name: Test & Build
+  test-and-sonar:
+    name: Test, Coverage & SonarCloud Scan
     runs-on: ubuntu-latest
 
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0  # จำเป็นสำหรับ SonarCloud เพื่อให้วิเคราะห์ Blame / New Code ได้ครบถ้วน
 
       - name: Set up Go
         uses: actions/setup-go@v5
@@ -30,8 +33,19 @@ jobs:
       - name: Run go vet
         run: go vet ./...
 
-      - name: Run unit tests with coverage
-        run: go test -v -race -count=1 -coverprofile=coverage.out ./...
+      - name: Run unit tests & generate coverage.out + test-report.json
+        run: |
+          go test -v -race -count=1 -coverpkg=./... -covermode=atomic -coverprofile=coverage.out -json ./... > test-report.json
+
+      - name: Display coverage summary
+        run: go tool cover -func=coverage.out
 
       - name: Build server binary
         run: go build -v -o bin/server ./cmd/server/main.go
+
+      - name: SonarCloud Scan
+        if: ${{ env.SONAR_TOKEN != '' }}
+        uses: SonarSource/sonarcloud-github-action@master
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
