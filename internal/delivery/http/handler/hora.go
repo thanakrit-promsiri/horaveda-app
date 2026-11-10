@@ -91,25 +91,8 @@ func (h *AuthHandler) HandleHoraPredict(w http.ResponseWriter, r *http.Request) 
 
 	prediction, err := h.AnythingLLMService.PredictNatalChart(r.Context(), username, result.Prompt)
 	if err != nil {
-		// จัดการ Graceful Fallback: เมื่อ AnythingLLM ขัดข้องหรือไม่สามารถเชื่อมต่อได้ (เช่น connection refused หรือ timeout)
-		// ไม่ส่ง Error 502 กลับหา Client เพราะ:
-		// 1) Cloudflare จะดักจับ HTTP 502 แล้วแทนที่ด้วยหน้าจอ Error 502 ของ Cloudflare ทันที ทำให้ Frontend พัง
-		// 2) การคำนวณพิกัดดวงดาว (Prompt) จาก Lahiri สำเร็จแล้ว ผู้ใช้ควรได้รับข้อมูลผูกดวงตามปกติ
-		anythingURL := ""
-		if h.Cfg != nil {
-			anythingURL = h.Cfg.AnythingLLMAPIURL
-		}
-		guide := "ตรวจสอบว่า AnythingLLM Desktop/Docker เปิดทำงานอยู่หรือไม่ และพอร์ตเปิดรับการเชื่อมต่อจริงหรือไม่"
-		if strings.Contains(err.Error(), "503") || strings.Contains(err.Error(), "abort") {
-			guide = "เชื่อมต่อ AnythingLLM ได้สำเร็จแล้ว แต่โมเดล LLM ภายใน AnythingLLM ตอบกลับข้อผิดพลาด (503 Service Unavailable) ให้ตรวจสอบการตั้งค่า AI Provider ในหน้า Settings > LLM Preference ของ AnythingLLM"
-		}
-		h.Logger.Warnw("AnythingLLM prediction unavailable, falling back to prompt only",
-			"username", username,
-			"anythingllm_url", anythingURL,
-			"fallback_action", "HTTP 200 OK with prompt and warning message",
-			"investigation_guide", guide,
-			"error", err,
-		)
+		// จัดการ Graceful Fallback: ส่งข้อมูลพื้นดวงชะตาพร้อมข้อความ warning โดยไม่ส่ง HTTP 502
+		h.logLLMFallback("natal", username, err)
 		resp.Warning = "ไม่สามารถเชื่อมต่อบริการทำนาย AI ได้ในขณะนี้ ระบบได้ส่งคืนข้อมูลพื้นดวงชะตาสำหรับการผูกดวงแล้ว"
 		response.Success(w, http.StatusOK, "คำนวณข้อมูลพื้นดวงชะตาสำเร็จ (ระบบทำนาย AI ไม่พร้อมใช้งานชั่วคราว)", resp)
 		return

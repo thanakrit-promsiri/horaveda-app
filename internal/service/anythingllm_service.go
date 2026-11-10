@@ -131,86 +131,8 @@ func (s *AnythingLLMService) PredictNatalChart(ctx context.Context, username, ch
 		return nil, response.NewBadGatewayError("ไม่ได้รับข้อมูลพื้นดวงชะตาสำหรับการพยากรณ์", fmt.Errorf("empty chart prompt"))
 	}
 
-	start := time.Now()
-	s.Logger.Infow("Starting AnythingLLM prediction pipeline",
-		"username", username,
-		"workspace_slug", WorkspaceSlugFor(username),
-		"thread_slug", ThreadSlugFor(WorkspaceSlugFor(username)),
-		"base_url", s.BaseURL,
-		"prompt_len", len(chartPrompt),
-	)
-
-	ref, err := s.ensureUserThread(ctx, username)
-	if err != nil {
-		s.Logger.Warnw("AnythingLLM workspace/thread setup failed",
-			"username", username,
-			"elapsed_ms", time.Since(start).Milliseconds(),
-			"error", err,
-		)
-		return nil, err
-	}
-
 	message := BuildVedicPredictionPrompt(chartPrompt)
-	text, err := s.sendThreadChat(ctx, ref, message)
-	if err != nil {
-		// ถ้า AnythingLLM ตอบกลับว่าไม่พบ Workspace หรือ Thread (404 Not Found เช่น ถูกลบออกจาก AnythingLLM)
-		// ให้ล้าง Cache ตรวจสอบ/สร้างใหม่ทันที และลองส่งคำพยากรณ์ซ้ำอีก 1 ครั้ง (Auto-Recovery)
-		if isNotFoundError(err) {
-			s.Logger.Warnw("Workspace or thread not found in AnythingLLM (404), recreating and retrying prediction",
-				"username", username,
-				"stale_workspace_slug", ref.WorkspaceSlug,
-				"stale_thread_slug", ref.ThreadSlug,
-			)
-			s.threadCache.Delete(WorkspaceSlugFor(username))
-
-			newRef, ensureErr := s.ensureUserThread(ctx, username)
-			if ensureErr == nil {
-				retryText, retryErr := s.sendThreadChat(ctx, newRef, message)
-				if retryErr == nil {
-					s.Logger.Infow("AnythingLLM prediction retry succeeded after workspace/thread recreation",
-						"username", username,
-						"workspace_slug", newRef.WorkspaceSlug,
-						"thread_slug", newRef.ThreadSlug,
-					)
-					return &domain.AnythingLLMPrediction{
-						WorkspaceSlug: newRef.WorkspaceSlug,
-						ThreadSlug:    newRef.ThreadSlug,
-						TextResponse:  retryText,
-					}, nil
-				}
-				err = retryErr
-			} else {
-				err = ensureErr
-			}
-		}
-
-		s.Logger.Warnw("AnythingLLM chat execution failed",
-			"username", username,
-			"workspace_slug", ref.WorkspaceSlug,
-			"thread_slug", ref.ThreadSlug,
-			"elapsed_ms", time.Since(start).Milliseconds(),
-			"error", err,
-		)
-		var appErr *response.AppError
-		if errors.As(err, &appErr) && appErr.Code == http.StatusNotFound {
-			s.threadCache.Delete(WorkspaceSlugFor(username))
-		}
-		return nil, err
-	}
-
-	s.Logger.Infow("AnythingLLM prediction completed successfully",
-		"username", username,
-		"workspace_slug", ref.WorkspaceSlug,
-		"thread_slug", ref.ThreadSlug,
-		"response_len", len(text),
-		"elapsed_ms", time.Since(start).Milliseconds(),
-	)
-
-	return &domain.AnythingLLMPrediction{
-		WorkspaceSlug: ref.WorkspaceSlug,
-		ThreadSlug:    ref.ThreadSlug,
-		TextResponse:  text,
-	}, nil
+	return s.predictWithSharedThread(ctx, username, "natal", message)
 }
 
 // PredictTransitChart ส่งข้อความ Prompt พยากรณ์ดาวจรประจำเดือน เข้า Thread ประจำตัวผู้ใช้ (ใช้ Thread เดียวกับพื้นดวงชะตากำเนิด: 1 User : 1 Workspace : 1 Thread)
@@ -222,21 +144,26 @@ func (s *AnythingLLMService) PredictTransitChart(ctx context.Context, username, 
 		return nil, response.NewBadGatewayError("ไม่ได้รับข้อมูลพยากรณ์ดาวจรสำหรับการส่งไปยัง AI", fmt.Errorf("empty transit prompt"))
 	}
 
+	return s.predictWithSharedThread(ctx, username, "transit", transitPrompt)
+}
+
+// predictWithSharedThread ส่งข้อความ Prompt เข้า Thread ร่วม ({workspace}-hora) พร้อมระบบ Auto-Recovery (404 Retry)
+func (s *AnythingLLMService) predictWithSharedThread(ctx context.Context, username, pipelineType, promptMessage string) (*domain.AnythingLLMPrediction, error) {
 	start := time.Now()
 	expectedWS := WorkspaceSlugFor(username)
 	expectedThread := ThreadSlugFor(expectedWS)
 
-	s.Logger.Infow("Starting AnythingLLM transit prediction pipeline (sharing natal thread)",
+	s.Logger.Infow("Starting AnythingLLM "+pipelineType+" prediction pipeline",
 		"username", username,
 		"workspace_slug", expectedWS,
 		"thread_slug", expectedThread,
 		"base_url", s.BaseURL,
-		"prompt_len", len(transitPrompt),
+		"prompt_len", len(promptMessage),
 	)
 
 	ref, err := s.ensureUserThread(ctx, username)
 	if err != nil {
-		s.Logger.Warnw("AnythingLLM transit workspace/thread setup failed",
+		s.Logger.Warnw("AnythingLLM "+pipelineType+" workspace/thread setup failed",
 			"username", username,
 			"elapsed_ms", time.Since(start).Milliseconds(),
 			"error", err,
@@ -244,7 +171,7 @@ func (s *AnythingLLMService) PredictTransitChart(ctx context.Context, username, 
 		return nil, err
 	}
 
-	text, err := s.sendThreadChat(ctx, ref, transitPrompt)
+	text, err := s.sendThreadChat(ctx, ref, promptMessage)
 	if err != nil {
 		if isNotFoundError(err) {
 			s.Logger.Warnw("Workspace or thread not found in AnythingLLM (404), recreating and retrying prediction",
@@ -256,9 +183,9 @@ func (s *AnythingLLMService) PredictTransitChart(ctx context.Context, username, 
 
 			newRef, ensureErr := s.ensureUserThread(ctx, username)
 			if ensureErr == nil {
-				retryText, retryErr := s.sendThreadChat(ctx, newRef, transitPrompt)
+				retryText, retryErr := s.sendThreadChat(ctx, newRef, promptMessage)
 				if retryErr == nil {
-					s.Logger.Infow("AnythingLLM transit prediction retry succeeded after workspace/thread recreation",
+					s.Logger.Infow("AnythingLLM "+pipelineType+" prediction retry succeeded after workspace/thread recreation",
 						"username", username,
 						"workspace_slug", newRef.WorkspaceSlug,
 						"thread_slug", newRef.ThreadSlug,
@@ -275,7 +202,7 @@ func (s *AnythingLLMService) PredictTransitChart(ctx context.Context, username, 
 			}
 		}
 
-		s.Logger.Warnw("AnythingLLM transit chat execution failed",
+		s.Logger.Warnw("AnythingLLM "+pipelineType+" chat execution failed",
 			"username", username,
 			"workspace_slug", ref.WorkspaceSlug,
 			"thread_slug", ref.ThreadSlug,
@@ -289,7 +216,7 @@ func (s *AnythingLLMService) PredictTransitChart(ctx context.Context, username, 
 		return nil, err
 	}
 
-	s.Logger.Infow("AnythingLLM transit prediction completed successfully",
+	s.Logger.Infow("AnythingLLM "+pipelineType+" prediction completed successfully",
 		"username", username,
 		"workspace_slug", ref.WorkspaceSlug,
 		"thread_slug", ref.ThreadSlug,

@@ -84,46 +84,8 @@ func (s *HoraService) GetHoraPrompt(ctx context.Context, req domain.HoraPredictR
 		targetURL = DefaultHoraAPIURL
 	}
 
-	httpClient := s.HTTPClient
-	if httpClient == nil {
-		httpClient = &http.Client{Timeout: defaultHTTPTimeout}
-	}
-
 	s.Logger.Infow("Sending request to Hora Prompt API", "url", targetURL, "year", req.Year, "month", req.Month, "day", req.Day, "hour_thai", req.HourThai)
-
-	httpReq, err := http.NewRequestWithContext(ctx, http.MethodPost, targetURL, bytes.NewReader(bodyBytes))
-	if err != nil {
-		s.Logger.Errorw("Failed to create HTTP request for Hora Prompt API", "url", targetURL, "error", err)
-		return nil, response.NewInternalServerError("ไม่สามารถสร้างคำขอไปยังระบบคำนวณดวงชะตาได้", err)
-	}
-	httpReq.Header.Set("Content-Type", "application/json")
-
-	resp, err := httpClient.Do(httpReq)
-	if err != nil {
-		s.Logger.Errorw("Failed to call Hora Prompt API", "url", targetURL, "error", err)
-		return nil, response.NewInternalServerError("ไม่สามารถเชื่อมต่อกับระบบคำนวณดวงชะตาได้", err)
-	}
-	defer resp.Body.Close()
-
-	respBytes, err := io.ReadAll(resp.Body)
-	if err != nil {
-		s.Logger.Errorw("Failed to read response from Hora Prompt API", "url", targetURL, "error", err)
-		return nil, response.NewInternalServerError("ไม่สามารถอ่านผลลัพธ์จากระบบคำนวณดวงชะตาได้", err)
-	}
-
-	if resp.StatusCode < http.StatusOK || resp.StatusCode >= http.StatusMultipleChoices {
-		s.Logger.Errorw("Hora Prompt API returned non-2xx status", "status_code", resp.StatusCode, "body", string(respBytes))
-		return nil, response.NewInternalServerError("ระบบคำนวณดวงชะตาแจ้งข้อผิดพลาดในการประมวลผล", fmt.Errorf("hora api status %d: %s", resp.StatusCode, string(respBytes)))
-	}
-
-	var promptResp domain.HoraPromptResponse
-	if err := json.Unmarshal(respBytes, &promptResp); err != nil {
-		s.Logger.Errorw("Failed to unmarshal HoraPromptResponse", "error", err, "body", string(respBytes))
-		return nil, response.NewInternalServerError("รูปแบบข้อมูลจากระบบคำนวณดวงชะตาไม่ถูกต้อง", err)
-	}
-
-	s.Logger.Infow("Successfully received prompt from Hora Prompt API", "status", promptResp.Status)
-	return &promptResp, nil
+	return s.callHoraAPI(ctx, targetURL, "ระบบคำนวณดวงชะตา", bodyBytes)
 }
 
 // GetHoraTransitPrompt ส่งข้อมูลวันเดือนปีเกิด เวลาเกิด พิกัด และเดือนปีจรไปยัง Lahiri Transit Dasha Prompt API
@@ -163,11 +125,6 @@ func (s *HoraService) GetHoraTransitPrompt(ctx context.Context, req domain.HoraT
 		targetURL = DefaultHoraTransitAPIURL
 	}
 
-	httpClient := s.HTTPClient
-	if httpClient == nil {
-		httpClient = &http.Client{Timeout: defaultHTTPTimeout}
-	}
-
 	s.Logger.Infow("Sending request to Hora Transit Dasha Prompt API",
 		"url", targetURL,
 		"year", req.Year,
@@ -176,39 +133,48 @@ func (s *HoraService) GetHoraTransitPrompt(ctx context.Context, req domain.HoraT
 		"transit_year", req.TransitYear,
 		"transit_month", req.TransitMonth,
 	)
+	return s.callHoraAPI(ctx, targetURL, "ระบบคำนวณดาวจร", bodyBytes)
+}
+
+// callHoraAPI ทำหน้าที่ยิงคำขอ HTTP ไปยัง Lahiri Prompt API และแปลงผลลัพธ์เป็นมาตรฐาน
+func (s *HoraService) callHoraAPI(ctx context.Context, targetURL, serviceName string, bodyBytes []byte) (*domain.HoraPromptResponse, error) {
+	httpClient := s.HTTPClient
+	if httpClient == nil {
+		httpClient = &http.Client{Timeout: defaultHTTPTimeout}
+	}
 
 	httpReq, err := http.NewRequestWithContext(ctx, http.MethodPost, targetURL, bytes.NewReader(bodyBytes))
 	if err != nil {
-		s.Logger.Errorw("Failed to create HTTP request for Hora Transit Prompt API", "url", targetURL, "error", err)
-		return nil, response.NewInternalServerError("ไม่สามารถสร้างคำขอไปยังระบบคำนวณดาวจรได้", err)
+		s.Logger.Errorw("Failed to create HTTP request for "+serviceName, "url", targetURL, "error", err)
+		return nil, response.NewInternalServerError("ไม่สามารถสร้างคำขอไปยัง"+serviceName+"ได้", err)
 	}
 	httpReq.Header.Set("Content-Type", "application/json")
 
 	resp, err := httpClient.Do(httpReq)
 	if err != nil {
-		s.Logger.Errorw("Failed to call Hora Transit Prompt API", "url", targetURL, "error", err)
-		return nil, response.NewInternalServerError("ไม่สามารถเชื่อมต่อกับระบบคำนวณดาวจรได้", err)
+		s.Logger.Errorw("Failed to call "+serviceName, "url", targetURL, "error", err)
+		return nil, response.NewInternalServerError("ไม่สามารถเชื่อมต่อกับ"+serviceName+"ได้", err)
 	}
 	defer resp.Body.Close()
 
 	respBytes, err := io.ReadAll(resp.Body)
 	if err != nil {
-		s.Logger.Errorw("Failed to read response from Hora Transit Prompt API", "url", targetURL, "error", err)
-		return nil, response.NewInternalServerError("ไม่สามารถอ่านผลลัพธ์จากระบบคำนวณดาวจรได้", err)
+		s.Logger.Errorw("Failed to read response from "+serviceName, "url", targetURL, "error", err)
+		return nil, response.NewInternalServerError("ไม่สามารถอ่านผลลัพธ์จาก"+serviceName+"ได้", err)
 	}
 
 	if resp.StatusCode < http.StatusOK || resp.StatusCode >= http.StatusMultipleChoices {
-		s.Logger.Errorw("Hora Transit Prompt API returned non-2xx status", "status_code", resp.StatusCode, "body", string(respBytes))
-		return nil, response.NewInternalServerError("ระบบคำนวณดาวจรแจ้งข้อผิดพลาดในการประมวลผล", fmt.Errorf("hora transit api status %d: %s", resp.StatusCode, string(respBytes)))
+		s.Logger.Errorw(serviceName+" returned non-2xx status", "status_code", resp.StatusCode, "body", string(respBytes))
+		return nil, response.NewInternalServerError(serviceName+"แจ้งข้อผิดพลาดในการประมวลผล", fmt.Errorf("%s status %d: %s", serviceName, resp.StatusCode, string(respBytes)))
 	}
 
 	var promptResp domain.HoraPromptResponse
 	if err := json.Unmarshal(respBytes, &promptResp); err != nil {
-		s.Logger.Errorw("Failed to unmarshal HoraTransitPromptResponse", "error", err, "body", string(respBytes))
-		return nil, response.NewInternalServerError("รูปแบบข้อมูลจากระบบคำนวณดาวจรไม่ถูกต้อง", err)
+		s.Logger.Errorw("Failed to unmarshal response from "+serviceName, "error", err, "body", string(respBytes))
+		return nil, response.NewInternalServerError("รูปแบบข้อมูลจาก"+serviceName+"ไม่ถูกต้อง", err)
 	}
 
-	s.Logger.Infow("Successfully received prompt from Hora Transit Prompt API", "status", promptResp.Status)
+	s.Logger.Infow("Successfully received prompt from "+serviceName, "status", promptResp.Status)
 	return &promptResp, nil
 }
 

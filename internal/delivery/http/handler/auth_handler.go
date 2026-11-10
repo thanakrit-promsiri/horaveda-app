@@ -1,6 +1,8 @@
 package handler
 
 import (
+	"strings"
+
 	"horaveda-app/internal/config"
 	"horaveda-app/internal/domain"
 	"horaveda-app/internal/service"
@@ -53,5 +55,24 @@ func NewAuthHandler(authService domain.AuthUsecase, logger *zap.SugaredLogger, c
 		service.NewAnythingLLMService(anythingLLMURL, anythingLLMKey, anythingLLMTimeout, logger, nil),
 		logger,
 		cfg,
+	)
+}
+
+// logLLMFallback บันทึก Log แจ้งเตือนและคืนข้อความแนะนำกรณี AnythingLLM ไม่พร้อมใช้งาน
+func (h *AuthHandler) logLLMFallback(predictionType, username string, err error) {
+	anythingURL := ""
+	if h.Cfg != nil {
+		anythingURL = h.Cfg.AnythingLLMAPIURL
+	}
+	guide := "ตรวจสอบว่า AnythingLLM Desktop/Docker เปิดทำงานอยู่หรือไม่ และพอร์ตเปิดรับการเชื่อมต่อจริงหรือไม่"
+	if err != nil && (strings.Contains(err.Error(), "503") || strings.Contains(err.Error(), "abort")) {
+		guide = "เชื่อมต่อ AnythingLLM ได้สำเร็จแล้ว แต่โมเดล LLM ภายใน AnythingLLM ตอบกลับข้อผิดพลาด (503 Service Unavailable) ให้ตรวจสอบการตั้งค่า AI Provider ในหน้า Settings > LLM Preference ของ AnythingLLM"
+	}
+	h.Logger.Warnw("AnythingLLM "+predictionType+" prediction unavailable, falling back to prompt only",
+		"username", username,
+		"anythingllm_url", anythingURL,
+		"fallback_action", "HTTP 200 OK with prompt and warning message",
+		"investigation_guide", guide,
+		"error", err,
 	)
 }

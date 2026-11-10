@@ -145,21 +145,7 @@ func (h *AuthHandler) processTransitPredict(w http.ResponseWriter, r *http.Reque
 	// ส่งพิกัดดาวจรเข้า AnythingLLM ใน Thread ({workspace}-transit)
 	prediction, err := h.AnythingLLMService.PredictTransitChart(r.Context(), username, assembledPrompt)
 	if err != nil {
-		anythingURL := ""
-		if h.Cfg != nil {
-			anythingURL = h.Cfg.AnythingLLMAPIURL
-		}
-		guide := "ตรวจสอบว่า AnythingLLM Desktop/Docker เปิดทำงานอยู่หรือไม่ และพอร์ตเปิดรับการเชื่อมต่อจริงหรือไม่"
-		if strings.Contains(err.Error(), "503") || strings.Contains(err.Error(), "abort") {
-			guide = "เชื่อมต่อ AnythingLLM ได้สำเร็จแล้ว แต่โมเดล LLM ภายใน AnythingLLM ตอบกลับข้อผิดพลาด (503 Service Unavailable) ให้ตรวจสอบการตั้งค่า AI Provider ในหน้า Settings > LLM Preference ของ AnythingLLM"
-		}
-		h.Logger.Warnw("AnythingLLM transit prediction unavailable, falling back to prompts only",
-			"username", username,
-			"anythingllm_url", anythingURL,
-			"fallback_action", "HTTP 200 OK with prompts and warning message",
-			"investigation_guide", guide,
-			"error", err,
-		)
+		h.logLLMFallback("transit", username, err)
 		resp.Warning = "ไม่สามารถเชื่อมต่อบริการทำนาย AI ได้ในขณะนี้ ระบบได้ส่งคืนข้อมูลดาวชะตากำเนิดและดาวจรสำหรับการผูกดวงแล้ว"
 		response.Success(w, http.StatusOK, "คำนวณข้อมูลดาวจรสำเร็จ (ระบบทำนาย AI ไม่พร้อมใช้งานชั่วคราว)", resp)
 		return
