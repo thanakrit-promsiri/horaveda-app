@@ -18,6 +18,7 @@ logs/*.gz
 
 # Code coverage profiles and other test artifacts
 *.out
+coverage
 coverage.*
 !coverage.go
 *.coverprofile
@@ -30,12 +31,17 @@ profile.cov
 go.work
 go.work.sum
 
-# env file
+# Environment variables (keep .env.example tracked)
 .env
+.env.local
+.env.*.local
+!.env.example
 
-# Editor/IDE
-# .idea/
-# .vscode/
+# Editor/IDE & OS files
+.idea/
+.vscode/
+.DS_Store
+Thumbs.db
 /logs/app.log
 /horaveda.postman_collection.json
 /anythingllm.postman_collection.json
