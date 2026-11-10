@@ -90,6 +90,17 @@ func TestNewRouter(t *testing.T) {
 		}
 	})
 
+	t.Run("GET /api/v1/auth/serial-keys is public without token", func(t *testing.T) {
+		req := httptest.NewRequest(http.MethodGet, "/api/v1/auth/serial-keys", nil)
+		rr := httptest.NewRecorder()
+
+		mux.ServeHTTP(rr, req)
+
+		if rr.Code != http.StatusOK {
+			t.Errorf("expected 200 without token, got %d", rr.Code)
+		}
+	})
+
 	t.Run("GET /api/v1/auth/verify with valid cookie", func(t *testing.T) {
 		token := jwt.NewWithClaims(jwt.SigningMethodHS256, jwt.MapClaims{
 			"user_id":  1,

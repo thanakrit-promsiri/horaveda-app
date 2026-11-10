@@ -25,6 +25,8 @@ func NewRouter(authHandler *handler.AuthHandler, authMiddleware *middleware.Auth
 	// Public Routes (ไม่ต้องล็อกอินก็เข้าถึงได้ พร้อมใส่ Log)
 	mux.HandleFunc("POST /api/v1/auth/register-serial", logRequest(authHandler.HandleSerialRegister, "RegisterSerial"))
 	mux.HandleFunc("POST /api/v1/auth/logout", logRequest(authHandler.HandleLogout, "Logout"))
+	mux.HandleFunc("GET /api/v1/auth/serial-keys", logRequest(authHandler.HandleGetSerialKeysStatus, "GetSerialKeysStatus"))
+	mux.HandleFunc("POST /api/v1/auth/serial-keys", logRequest(authHandler.HandleGetSerialKeysStatus, "PostSerialKeysStatus"))
 
 	// Protected Routes (ต้องผ่านการตรวจสอบสิทธิ์ผ่าน Auth Middleware ก่อน พร้อมใส่ Log)
 	mux.HandleFunc("GET /api/v1/auth/verify", logRequest(authMiddleware.RequireAuth(authHandler.HandleVerifyAuth), "VerifyAuth"))

@@ -171,6 +171,73 @@ func (s *AuthService) GetAllKeys() ([]map[string]interface{}, error) {
 	return keys, nil
 }
 
+// GetSerialKeysStatus ดึงรายการ Serial Key ทั้งหมดพร้อมสรุปว่าคีย์ใดกำลังใช้งานอยู่ (used) หรือว่าง (available)
+func (s *AuthService) GetSerialKeysStatus() (*domain.SerialKeyStatusResponse, error) {
+	rawKeys, err := s.Repo.GetAllSerialKeys()
+	if err != nil {
+		return nil, response.NewInternalServerError("ไม่สามารถดึงข้อมูลสถานะ Serial Key ได้", err)
+	}
+
+	items := make([]domain.SerialKeyStatusItem, 0, len(rawKeys))
+	availableKeys := make([]string, 0)
+	usedKeys := make([]string, 0)
+
+	for _, raw := range rawKeys {
+		var item domain.SerialKeyStatusItem
+
+		switch v := raw["id"].(type) {
+		case float64:
+			item.ID = int(v)
+		case int:
+			item.ID = v
+		}
+
+		if kc, ok := raw["key_code"].(string); ok {
+			item.KeyCode = kc
+		}
+
+		if used, ok := raw["is_used"].(bool); ok {
+			item.IsUsed = used
+		}
+
+		switch u := raw["user_id"].(type) {
+		case float64:
+			uid := int(u)
+			item.UserID = &uid
+		case int:
+			uid := u
+			item.UserID = &uid
+		}
+
+		if uname, ok := raw["username"].(string); ok {
+			item.Username = uname
+		}
+
+		if item.IsUsed {
+			item.Status = "used"
+			if item.KeyCode != "" {
+				usedKeys = append(usedKeys, item.KeyCode)
+			}
+		} else {
+			item.Status = "available"
+			if item.KeyCode != "" {
+				availableKeys = append(availableKeys, item.KeyCode)
+			}
+		}
+
+		items = append(items, item)
+	}
+
+	return &domain.SerialKeyStatusResponse{
+		TotalKeys:      len(items),
+		AvailableCount: len(availableKeys),
+		UsedCount:      len(usedKeys),
+		AvailableKeys:  availableKeys,
+		UsedKeys:       usedKeys,
+		Keys:           items,
+	}, nil
+}
+
 func (s *AuthService) VerifyToken(tokenString string) (jwt.MapClaims, error) {
 	token, err := jwt.Parse(tokenString, func(token *jwt.Token) (interface{}, error) {
 		if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {

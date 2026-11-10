@@ -1,4 +1,41 @@
-### 1. ลงทะเบียนด้วย Serial Key
+### 1. ตรวจสอบสถานะ Serial Key ทั้งหมด (ใช้อยู่ / ว่าง) — ไม่ต้องใช้ Token
+GET http://localhost:8082/api/v1/auth/serial-keys
+
+{
+  "success": true,
+  "message": "ดึงข้อมูลสถานะ Serial Key สำเร็จ",
+  "data": {
+    "total_keys": 2,
+    "available_count": 1,
+    "used_count": 1,
+    "available_keys": [
+      "BOOM-VIP-002"
+    ],
+    "used_keys": [
+      "BOOM-VIP-001"
+    ],
+    "keys": [
+      {
+        "id": 1,
+        "key_code": "BOOM-VIP-001",
+        "is_used": true,
+        "status": "used",
+        "user_id": 38
+      },
+      {
+        "id": 2,
+        "key_code": "BOOM-VIP-002",
+        "is_used": false,
+        "status": "available",
+        "user_id": null
+      }
+    ]
+  }
+}
+
+--------------------------------------------------
+
+### 2. ลงทะเบียนด้วย Serial Key
 POST http://localhost:8082/api/v1/auth/register-serial
 
 {
@@ -13,7 +50,30 @@ POST http://localhost:8082/api/v1/auth/register-serial
 
 --------------------------------------------------
 
-### 2. ถอนสิทธิ์ Serial Key และลบผู้ใช้ (Admin)
+### 2. ออกจากระบบ (Logout) — ล้าง Cookie พร้อมถอนสิทธิ์ Serial Key และลบผู้ใช้
+# รองรับการดึง username จาก Cookie auth_token / Header Authorization: Bearer <JWT_TOKEN> หรือส่ง {"username": "testuser01"} ใน JSON Body
+POST http://localhost:8082/api/v1/auth/logout
+Cookie: auth_token=<JWT_TOKEN> (หรือ Header Authorization: Bearer <JWT_TOKEN>)
+
+{
+  "username": "testuser01"
+}
+
+{
+  "success": true,
+  "message": "ออกจากระบบ ถอนสิทธิ์การใช้งาน Serial Key และลบบัญชีผู้ใช้สำเร็จ",
+  "data": {
+    "username": "testuser01",
+    "supabase_email": "testuser01@garbagecollection.info",
+    "revoked_keys": [
+      "BOOM-VIP-001"
+    ]
+  }
+}
+
+--------------------------------------------------
+
+### 3. ถอนสิทธิ์ Serial Key และลบผู้ใช้ (Admin)
 POST http://localhost:8082/api/v1/auth/revoke-user
 X-Admin-Key: hv_admin_8f92e4c7a1b3d6e0954f2a8c1d7e3b69
 

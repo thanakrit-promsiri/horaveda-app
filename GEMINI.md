@@ -117,8 +117,9 @@ horaveda-app/
 
 | Method | Path | Protection | Handler | Description |
 | :--- | :--- | :--- | :--- | :--- |
+| `GET`, `POST` | `/api/v1/auth/serial-keys` | Public | `HandleGetSerialKeysStatus` | ตรวจสอบสถานะ Serial Key ทั้งหมดว่าคีย์ใดกำลังใช้งานอยู่ (`used`) หรือว่าง (`available`) โดยไม่ต้องใช้ Token |
 | `POST` | `/api/v1/auth/register-serial` | Public | `HandleSerialRegister` | ลงทะเบียนด้วย `username` (`[a-zA-Z0-9]+`) และ `serial_key` พร้อมทำ Saga Rollback หากล้มเหลว และเซ็ต Cookie `auth_token` |
-| `POST` | `/api/v1/auth/logout` | Public | `HandleLogout` | ล้าง Cookie `auth_token` (`MaxAge: -1`) |
+| `POST` | `/api/v1/auth/logout` | Public / Token | `HandleLogout` | ล้าง Cookie `auth_token` (`MaxAge: -1`) พร้อมถอนสิทธิ์ `serial_keys` (`is_used=false, user_id=nil`), ลบ `public.users` และลบ `auth.users` บน Supabase (ดึง `username` จาก JWT Token หรือ JSON Body) |
 | `GET` | `/api/v1/auth/verify` | `RequireAuth` | `HandleVerifyAuth` | ตรวจสอบ JWT Token และคืนค่า `data: {"username": "..."}` |
 | `POST`, `DELETE` | `/api/v1/auth/revoke-user` | `RequireAdminKey` | `HandleRevokeUser` | ถอนสิทธิ์ `serial_keys` (`is_used=false, user_id=nil`), ลบ `public.users` และลบ `auth.users` บน Supabase |
 | `POST` | `/api/v1/hora/predict` (และ `/api/v1/hora/prompt`) | `RequireAuth` | `HandleHoraPredict` | รับ `{username, year, month, day, hour_thai, latitude, longitude}` คำนวณพิกัดดวงดาวผ่าน Lahiri แล้วส่งเข้า AnythingLLM (1 User : 1 Workspace : 1 Thread) คืนค่า `{status, prompt, prediction, workspace_slug, thread_slug}` |

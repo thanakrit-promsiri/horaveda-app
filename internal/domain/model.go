@@ -22,6 +22,26 @@ type SerialKey struct {
 	UserID  *int   `json:"user_id"`
 }
 
+// SerialKeyStatusItem ข้อมูลสถานะของแต่ละ Serial Key
+type SerialKeyStatusItem struct {
+	ID       int    `json:"id"`
+	KeyCode  string `json:"key_code"`
+	IsUsed   bool   `json:"is_used"`
+	Status   string `json:"status"` // "used" (ใช้อยู่) หรือ "available" (ว่าง)
+	UserID   *int   `json:"user_id"`
+	Username string `json:"username,omitempty"`
+}
+
+// SerialKeyStatusResponse ผลลัพธ์สรุปสถานะ Serial Key ทั้งหมดในระบบ (ใช้อยู่ / ว่าง)
+type SerialKeyStatusResponse struct {
+	TotalKeys      int                   `json:"total_keys"`
+	AvailableCount int                   `json:"available_count"`
+	UsedCount      int                   `json:"used_count"`
+	AvailableKeys  []string              `json:"available_keys"`
+	UsedKeys       []string              `json:"used_keys"`
+	Keys           []SerialKeyStatusItem `json:"keys"`
+}
+
 type User struct {
 	ID       int    `json:"id"`
 	Username string `json:"username"`

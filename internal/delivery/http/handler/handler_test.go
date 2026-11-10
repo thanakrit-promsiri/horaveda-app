@@ -267,29 +267,140 @@ func TestHandleVerifyAuth(t *testing.T) {
 }
 
 func TestHandleLogout(t *testing.T) {
-	h := setupHandler(&stubAuthRepo{})
-	req := httptest.NewRequest(http.MethodPost, "/api/v1/auth/logout", nil)
-	rr := httptest.NewRecorder()
+	t.Run("method not allowed", func(t *testing.T) {
+		h := setupHandler(&stubAuthRepo{})
+		req := httptest.NewRequest(http.MethodGet, "/api/v1/auth/logout", nil)
+		rr := httptest.NewRecorder()
 
-	h.HandleLogout(rr, req)
+		h.HandleLogout(rr, req)
 
-	if rr.Code != http.StatusOK {
-		t.Errorf("expected 200, got %d", rr.Code)
-	}
-
-	var foundCookie *http.Cookie
-	for _, c := range rr.Result().Cookies() {
-		if c.Name == "auth_token" {
-			foundCookie = c
-			break
+		if rr.Code != http.StatusMethodNotAllowed {
+			t.Errorf("expected 405, got %d", rr.Code)
 		}
-	}
-	if foundCookie == nil {
-		t.Fatal("expected auth_token cookie to be set for clearing")
-	}
-	if foundCookie.MaxAge != -1 {
-		t.Errorf("expected MaxAge -1, got %d", foundCookie.MaxAge)
-	}
+	})
+
+	t.Run("anonymous logout without token or body clears cookie", func(t *testing.T) {
+		h := setupHandler(&stubAuthRepo{})
+		req := httptest.NewRequest(http.MethodPost, "/api/v1/auth/logout", nil)
+		rr := httptest.NewRecorder()
+
+		h.HandleLogout(rr, req)
+
+		if rr.Code != http.StatusOK {
+			t.Errorf("expected 200, got %d", rr.Code)
+		}
+
+		var foundCookie *http.Cookie
+		for _, c := range rr.Result().Cookies() {
+			if c.Name == "auth_token" {
+				foundCookie = c
+				break
+			}
+		}
+		if foundCookie == nil {
+			t.Fatal("expected auth_token cookie to be set for clearing")
+		}
+		if foundCookie.MaxAge != -1 {
+			t.Errorf("expected MaxAge -1, got %d", foundCookie.MaxAge)
+		}
+	})
+
+	t.Run("logout with valid JWT in cookie revokes serial key and deletes user", func(t *testing.T) {
+		revokedCalled := false
+		repo := &stubAuthRepo{
+			findSerialKeyFn: func(serialKey string) (*domain.SerialKey, error) {
+				return &domain.SerialKey{ID: 1, KeyCode: serialKey, IsUsed: false}, nil
+			},
+			createUserFn: func(username string) (*domain.User, error) {
+				return &domain.User{ID: 38, Username: username}, nil
+			},
+			createSupabaseAuthUserFn: func(email, password, username string) (string, error) {
+				return "00000000-0000-0000-0000-000000000001", nil
+			},
+			updateSerialKeyStatusFn: func(keyID int, userID int) error {
+				return nil
+			},
+			revokeSerialKeysByUserIDFn: func(userID int) ([]domain.SerialKey, error) {
+				revokedCalled = true
+				return []domain.SerialKey{{ID: 1, KeyCode: "BOOM-VIP-001"}}, nil
+			},
+		}
+		h := setupHandler(repo)
+		token, err := h.AuthService.RegisterWithSerial("testuser01", "BOOM-VIP-001")
+		if err != nil {
+			t.Fatalf("unexpected error generating token: %v", err)
+		}
+
+		req := httptest.NewRequest(http.MethodPost, "/api/v1/auth/logout", nil)
+		req.AddCookie(&http.Cookie{Name: "auth_token", Value: token})
+		rr := httptest.NewRecorder()
+
+		h.HandleLogout(rr, req)
+
+		if rr.Code != http.StatusOK {
+			t.Errorf("expected 200, got %d", rr.Code)
+		}
+		if !revokedCalled {
+			t.Error("expected RevokeSerialKeysByUserID to be called during logout")
+		}
+		if !strings.Contains(rr.Body.String(), "BOOM-VIP-001") {
+			t.Errorf("expected response body to contain revoked key BOOM-VIP-001, got: %s", rr.Body.String())
+		}
+	})
+
+	t.Run("logout with username in JSON body revokes serial key and deletes user", func(t *testing.T) {
+		revokedCalled := false
+		repo := &stubAuthRepo{
+			revokeSerialKeysByUserIDFn: func(userID int) ([]domain.SerialKey, error) {
+				revokedCalled = true
+				return []domain.SerialKey{{ID: 1, KeyCode: "BOOM-VIP-001"}}, nil
+			},
+		}
+		h := setupHandler(repo)
+		req := httptest.NewRequest(http.MethodPost, "/api/v1/auth/logout", bytes.NewBufferString(`{"username": "testuser01"}`))
+		rr := httptest.NewRecorder()
+
+		h.HandleLogout(rr, req)
+
+		if rr.Code != http.StatusOK {
+			t.Errorf("expected 200, got %d", rr.Code)
+		}
+		if !revokedCalled {
+			t.Error("expected RevokeSerialKeysByUserID to be called")
+		}
+	})
+
+	t.Run("logout with mismatched username in JSON body returns 403", func(t *testing.T) {
+		h := setupHandler(&stubAuthRepo{})
+		req := httptest.NewRequest(http.MethodPost, "/api/v1/auth/logout", bytes.NewBufferString(`{"username": "otheruser"}`))
+		ctx := context.WithValue(req.Context(), "userClaims", map[string]interface{}{
+			"username": "testuser01",
+		})
+		rr := httptest.NewRecorder()
+
+		h.HandleLogout(rr, req.WithContext(ctx))
+
+		if rr.Code != http.StatusForbidden {
+			t.Errorf("expected 403, got %d", rr.Code)
+		}
+	})
+
+	t.Run("logout when user not found returns 404 and still clears cookie", func(t *testing.T) {
+		repo := &stubAuthRepo{
+			findUserByUsernameFn: func(username string) (*domain.User, error) {
+				return nil, errors.New("not found")
+			},
+		}
+		h := setupHandler(repo)
+		req := httptest.NewRequest(http.MethodPost, "/api/v1/auth/logout", bytes.NewBufferString(`{"username": "missinguser"}`))
+		rr := httptest.NewRecorder()
+
+		h.HandleLogout(rr, req)
+
+		if rr.Code != http.StatusNotFound {
+			t.Errorf("expected 404, got %d", rr.Code)
+		}
+	})
 }
 
 func TestHandleDebugGetAllKeys(t *testing.T) {
@@ -324,6 +435,47 @@ func TestHandleDebugGetAllKeys(t *testing.T) {
 
 		if rr.Code != http.StatusInternalServerError {
 			t.Errorf("expected 500, got %d", rr.Code)
+		}
+	})
+}
+
+func TestHandleGetSerialKeysStatus(t *testing.T) {
+	t.Run("method not allowed", func(t *testing.T) {
+		h := setupHandler(&stubAuthRepo{})
+		req := httptest.NewRequest(http.MethodDelete, "/api/v1/auth/serial-keys", nil)
+		rr := httptest.NewRecorder()
+
+		h.HandleGetSerialKeysStatus(rr, req)
+
+		if rr.Code != http.StatusMethodNotAllowed {
+			t.Errorf("expected 405, got %d", rr.Code)
+		}
+	})
+
+	t.Run("returns available and used keys summary", func(t *testing.T) {
+		repo := &stubAuthRepo{
+			getAllSerialKeysFn: func() ([]map[string]interface{}, error) {
+				return []map[string]interface{}{
+					{"id": float64(1), "key_code": "BOOM-VIP-001", "is_used": true, "user_id": float64(38)},
+					{"id": float64(2), "key_code": "BOOM-VIP-002", "is_used": false, "user_id": nil},
+				}, nil
+			},
+		}
+		h := setupHandler(repo)
+		req := httptest.NewRequest(http.MethodGet, "/api/v1/auth/serial-keys", nil)
+		rr := httptest.NewRecorder()
+
+		h.HandleGetSerialKeysStatus(rr, req)
+
+		if rr.Code != http.StatusOK {
+			t.Fatalf("expected 200, got %d", rr.Code)
+		}
+		body := rr.Body.String()
+		if !strings.Contains(body, `"available_count":1`) || !strings.Contains(body, `"used_count":1`) {
+			t.Errorf("unexpected summary in body: %s", body)
+		}
+		if !strings.Contains(body, `"BOOM-VIP-001"`) || !strings.Contains(body, `"BOOM-VIP-002"`) {
+			t.Errorf("expected key codes in body: %s", body)
 		}
 	})
 }
