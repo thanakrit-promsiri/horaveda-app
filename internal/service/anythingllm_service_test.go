@@ -403,7 +403,7 @@ func TestBuildVedicTransitPredictionPrompt(t *testing.T) {
 		"•\nความรักและสุขภาพ:",
 		"🪐 ดาวจรสำคัญ:",
 		"✨ เดือนมกราคม 2570:",
-		"พระพุทธศาสนา",
+		"กุศลกรรม",
 		"ASC:Aq 03°39'",
 		"Ju:Ge 05°",
 	}
