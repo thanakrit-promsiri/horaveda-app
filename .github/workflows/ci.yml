@@ -46,7 +46,7 @@ jobs:
         run: go build -v -o bin/server ./cmd/server/main.go
 
       - name: SonarCloud Scan
-        uses: SonarSource/sonarqube-scan-action@e805d87e00fa71f762744cc1011812837bc902fa # v8.4.1
+        uses: SonarSource/sonarqube-scan-action@v5
         with:
           args: >
             -Dsonar.projectKey=thanakrit-promsiri_horaveda-app
