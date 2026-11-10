@@ -45,16 +45,16 @@ func main() {
 
 	// กำหนดค่า HTTP Server พร้อม Timeout มาตรฐานเพื่อป้องกัน Slowloris Attack
 	// WriteTimeout ต้องนานกว่าเวลารอ AnythingLLM (+ เวลาคำนวณพื้นดวง) ไม่เช่นนั้นคำตอบจะถูกตัดกลางทาง
-	writeTimeout := 15 * time.Second
-	if llmWrite := cfg.AnythingLLMTimeout + 30*time.Second; llmWrite > writeTimeout {
+	writeTimeout := 30 * time.Second
+	if llmWrite := cfg.AnythingLLMTimeout + 60*time.Second; llmWrite > writeTimeout {
 		writeTimeout = llmWrite
 	}
 	srv := &http.Server{
 		Addr:         ":" + cfg.Port,
 		Handler:      corsHandler,
-		ReadTimeout:  15 * time.Second,
+		ReadTimeout:  30 * time.Second,
 		WriteTimeout: writeTimeout,
-		IdleTimeout:  60 * time.Second,
+		IdleTimeout:  120 * time.Second,
 	}
 
 	// ดักจับสัญญาณปิดระบบ (SIGINT, SIGTERM) เพื่อทำ Graceful Shutdown

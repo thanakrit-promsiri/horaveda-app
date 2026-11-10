@@ -21,7 +21,7 @@ import (
 
 const (
 	DefaultAnythingLLMAPIURL  = "http://localhost:3001/api/v1"
-	DefaultAnythingLLMTimeout = 120 * time.Second
+	DefaultAnythingLLMTimeout = 300 * time.Second
 	anythingLLMChatMode       = "chat"
 	anythingLLMThreadSuffix   = "-hora"
 )
@@ -65,7 +65,7 @@ type anythingLLMChatResponse struct {
 	Error        interface{} `json:"error"`
 }
 
-// NewAnythingLLMService สร้าง Service พร้อมค่า Default (URL: http://localhost:3001/api/v1, Timeout: 120 วินาที)
+// NewAnythingLLMService สร้าง Service พร้อมค่า Default (URL: http://localhost:3001/api/v1, Timeout: 300 วินาที)
 func NewAnythingLLMService(baseURL, apiKey string, timeout time.Duration, log *zap.SugaredLogger, httpClient *http.Client) *AnythingLLMService {
 	if strings.TrimSpace(baseURL) == "" {
 		baseURL = DefaultAnythingLLMAPIURL

@@ -30,7 +30,7 @@
   - `HORA_TRANSIT_API_URL`: URL ของบริการคำนวณดาวจร (Default: `http://localhost:8083/api/v1/hora/transitdasha_prompt`)
   - `ANYTHINGLLM_API_URL`: URL ของ AnythingLLM Developer API (Default: `http://localhost:3001/api/v1`)
   - `ANYTHINGLLM_API_KEY`: API Key ของ AnythingLLM
-  - `ANYTHINGLLM_TIMEOUT_SECONDS`: เวลารอผลลัพธ์คำทำนายจาก AnythingLLM สูงสุด (Default: `120`)
+  - `ANYTHINGLLM_TIMEOUT_SECONDS`: เวลารอผลลัพธ์คำทำนายจาก AnythingLLM สูงสุด (Default: `300` สำหรับโมเดลขนาดใหญ่/Deepseek)
 
 ---
 

@@ -106,12 +106,12 @@ func LoadConfig() *Config {
 		anythingLLMAPIURL = "http://localhost:3001/api/v1"
 	}
 	anythingLLMAPIKey := strings.TrimSpace(os.Getenv("ANYTHINGLLM_API_KEY"))
-	anythingLLMTimeout := 120 * time.Second
+	anythingLLMTimeout := 300 * time.Second
 	if raw := strings.TrimSpace(os.Getenv("ANYTHINGLLM_TIMEOUT_SECONDS")); raw != "" {
 		if sec, err := strconv.Atoi(raw); err == nil && sec > 0 {
 			anythingLLMTimeout = time.Duration(sec) * time.Second
 		} else {
-			sugar.Warnw("ค่า ANYTHINGLLM_TIMEOUT_SECONDS ไม่ถูกต้อง ระบบจะใช้ค่าเริ่มต้น 120 วินาที", "value", raw)
+			sugar.Warnw("ค่า ANYTHINGLLM_TIMEOUT_SECONDS ไม่ถูกต้อง ระบบจะใช้ค่าเริ่มต้น 300 วินาที", "value", raw)
 		}
 	}
 
