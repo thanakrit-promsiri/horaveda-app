@@ -65,20 +65,25 @@ func NewDailyRotateWriter(dir, prefix string, maxSize, maxBackups, maxAge int, c
 	}
 
 	// เริ่มต้นตั้งค่าสำหรับวันนี้
-	_ = w.rotateToDay(w.now().Format("2006-01-02"))
-	w.scheduleNextMidnight()
+	w.mu.Lock()
+	_ = w.rotateToDay(w.nowLocked().Format("2006-01-02"))
+	w.scheduleNextMidnightLocked()
+	w.mu.Unlock()
 
 	return w
 }
 
-func (w *DailyRotateWriter) now() time.Time {
-	w.mu.Lock()
-	fn := w.nowFunc
-	w.mu.Unlock()
-	if fn != nil {
-		return fn()
+func (w *DailyRotateWriter) nowLocked() time.Time {
+	if w.nowFunc != nil {
+		return w.nowFunc()
 	}
 	return time.Now()
+}
+
+func (w *DailyRotateWriter) now() time.Time {
+	w.mu.Lock()
+	defer w.mu.Unlock()
+	return w.nowLocked()
 }
 
 // SetNowFunc กำหนดฟังก์ชันเวลาสำหรับทดสอบ
@@ -93,7 +98,7 @@ func (w *DailyRotateWriter) Write(p []byte) (n int, err error) {
 	w.mu.Lock()
 	defer w.mu.Unlock()
 
-	today := w.now().Format("2006-01-02")
+	today := w.nowLocked().Format("2006-01-02")
 	if w.currentLogger == nil || today != w.currentDay {
 		if err := w.rotateToDay(today); err != nil {
 			return 0, err
@@ -140,6 +145,7 @@ func (w *DailyRotateWriter) Close() error {
 	return nil
 }
 
+// rotateToDay หมุนเวียนไฟล์ (เรียกภายใต้การถือ lock w.mu เท่านั้น)
 func (w *DailyRotateWriter) rotateToDay(today string) error {
 	if err := os.MkdirAll(w.dir, 0755); err != nil {
 		return err
@@ -179,16 +185,14 @@ func (w *DailyRotateWriter) rotateToDay(today string) error {
 	return nil
 }
 
-func (w *DailyRotateWriter) scheduleNextMidnight() {
-	now := w.now()
+func (w *DailyRotateWriter) scheduleNextMidnightLocked() {
+	if w.closed {
+		return
+	}
+	now := w.nowLocked()
 	nextMidnight := time.Date(now.Year(), now.Month(), now.Day()+1, 0, 0, 0, 0, now.Location())
 	duration := nextMidnight.Sub(now)
 
-	w.mu.Lock()
-	if w.closed {
-		w.mu.Unlock()
-		return
-	}
 	if w.stopTimer != nil {
 		w.stopTimer.Stop()
 	}
@@ -198,13 +202,18 @@ func (w *DailyRotateWriter) scheduleNextMidnight() {
 		if w.closed {
 			return
 		}
-		today := w.now().Format("2006-01-02")
+		today := w.nowLocked().Format("2006-01-02")
 		if today != w.currentDay {
 			_ = w.rotateToDay(today)
 		}
-		w.scheduleNextMidnight()
+		w.scheduleNextMidnightLocked()
 	})
-	w.mu.Unlock()
+}
+
+func (w *DailyRotateWriter) scheduleNextMidnight() {
+	w.mu.Lock()
+	defer w.mu.Unlock()
+	w.scheduleNextMidnightLocked()
 }
 
 func (w *DailyRotateWriter) cleanOldLogs() {
@@ -212,12 +221,12 @@ func (w *DailyRotateWriter) cleanOldLogs() {
 	maxAge := w.maxAge
 	dir := w.dir
 	prefix := w.prefix
+	cutoff := w.nowLocked().AddDate(0, 0, -maxAge)
 	w.mu.Unlock()
 
 	if maxAge <= 0 {
 		return
 	}
-	cutoff := w.now().AddDate(0, 0, -maxAge)
 	entries, err := os.ReadDir(dir)
 	if err != nil {
 		return
