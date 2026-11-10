@@ -356,7 +356,7 @@ func TestAnythingLLMService_PredictNatalChart(t *testing.T) {
 
 func TestBuildVedicPredictionPrompt(t *testing.T) {
 	prompt := BuildVedicPredictionPrompt("  ASC:Aq 03°39'  ")
-	for _, want := range []string{"ASC:Aq 03°39'", "Lagna", "ตนุลัคน์", "นักษัตร", "Drishti", "ดาวกุม", "D9", "นวางศ์"} {
+	for _, want := range []string{"ASC:Aq 03°39'", "Lagna", "ตนุลัคน์", "นักษัตร", "Drishti", "การกุม", "D9", "นวางศ์"} {
 		if !strings.Contains(prompt, want) {
 			t.Errorf("expected prompt to contain %q", want)
 		}
