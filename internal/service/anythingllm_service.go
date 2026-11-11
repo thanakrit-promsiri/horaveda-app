@@ -9,6 +9,7 @@ import (
 	"io"
 	"net/http"
 	"net/url"
+	"regexp"
 	"strings"
 	"sync"
 	"time"
@@ -25,6 +26,24 @@ const (
 	anythingLLMChatMode       = "chat"
 	anythingLLMThreadSuffix   = "-hora"
 )
+
+var (
+	pairedThinkTagRegex      = regexp.MustCompile(`(?is)<think\b[^>]*>.*?</think\s*>`)
+	selfClosingThinkTagRegex = regexp.MustCompile(`(?i)<think\b[^>]*/\s*>`)
+	orphanCloseThinkTagRegex = regexp.MustCompile(`(?i)</think\s*>`)
+	unclosedThinkTagRegex    = regexp.MustCompile(`(?is)<think\b[^>]*>.*$`)
+)
+
+// StripThinkTags ลบส่วนกระบวนการคิดของโมเดล (<think>...</think> รวมถึงกรณีแท็กปิดหรือเปิดไม่สมบูรณ์) ออกจากข้อความตอบกลับของ AI
+func StripThinkTags(text string) string {
+	cleaned := pairedThinkTagRegex.ReplaceAllString(text, "")
+	cleaned = selfClosingThinkTagRegex.ReplaceAllString(cleaned, "")
+	if locs := orphanCloseThinkTagRegex.FindAllStringIndex(cleaned, -1); len(locs) > 0 {
+		cleaned = cleaned[locs[len(locs)-1][1]:]
+	}
+	cleaned = unclosedThinkTagRegex.ReplaceAllString(cleaned, "")
+	return strings.TrimSpace(cleaned)
+}
 
 // AnythingLLMService เชื่อมต่อ AnythingLLM Developer API แบบ 1 User : 1 Workspace : 1 Thread
 type AnythingLLMService struct {
@@ -549,12 +568,19 @@ func (s *AnythingLLMService) sendThreadChat(ctx context.Context, ref *threadRef,
 		s.Logger.Errorw("AnythingLLM chat returned error", "workspace_slug", ref.WorkspaceSlug, "thread_slug", ref.ThreadSlug, "error", res.Error)
 		return "", response.NewBadGatewayError("AnythingLLM ไม่สามารถประมวลผลคำทำนายได้", fmt.Errorf("anythingllm chat error: %v", res.Error))
 	}
-	if strings.TrimSpace(res.TextResponse) == "" {
+	cleanedText := StripThinkTags(res.TextResponse)
+	if cleanedText == "" {
 		return "", response.NewBadGatewayError("AnythingLLM ไม่ได้ส่งคำทำนายกลับมา", fmt.Errorf("empty textResponse"))
 	}
 
-	s.Logger.Infow("Received prediction from AnythingLLM", "workspace_slug", ref.WorkspaceSlug, "thread_slug", ref.ThreadSlug, "response_length", len(res.TextResponse))
-	return res.TextResponse, nil
+	s.Logger.Infow("Received prediction from AnythingLLM",
+		"workspace_slug", ref.WorkspaceSlug,
+		"thread_slug", ref.ThreadSlug,
+		"raw_length", len(res.TextResponse),
+		"response_length", len(cleanedText),
+		"had_think_tag", cleanedText != strings.TrimSpace(res.TextResponse),
+	)
+	return cleanedText, nil
 }
 
 func hasChatError(v interface{}) bool {

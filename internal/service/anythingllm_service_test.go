@@ -352,6 +352,32 @@ func TestAnythingLLMService_PredictNatalChart(t *testing.T) {
 			t.Fatalf("expected 400 AppError, got %v", err)
 		}
 	})
+
+	t.Run("strips think tags from prediction response", func(t *testing.T) {
+		fake := newFakeAnythingLLM()
+		fake.workspaces["testuser01"] = []string{"testuser01-hora"}
+		fake.chatBody = `{"id":"abc","type":"textResponse","textResponse":"\u003cthink\u003e\nวิเคราะห์ลัคนา\n\u003c/think\u003e\n\nคำทำนายพื้นดวงจริง","close":true,"error":null}`
+
+		res, err := fake.service().PredictNatalChart(context.Background(), "testuser01", chart)
+		if err != nil {
+			t.Fatalf("expected no error, got %v", err)
+		}
+		if res.TextResponse != "คำทำนายพื้นดวงจริง" {
+			t.Errorf("expected stripped prediction, got %q", res.TextResponse)
+		}
+	})
+
+	t.Run("returns 502 when response contains only think tags", func(t *testing.T) {
+		fake := newFakeAnythingLLM()
+		fake.workspaces["testuser01"] = []string{"testuser01-hora"}
+		fake.chatBody = `{"id":"abc","type":"textResponse","textResponse":"\u003cthink\u003eมีแต่กระบวนการคิด\u003c/think\u003e","close":true,"error":null}`
+
+		_, err := fake.service().PredictNatalChart(context.Background(), "testuser01", chart)
+		var appErr *response.AppError
+		if !errors.As(err, &appErr) || appErr.Code != http.StatusBadGateway {
+			t.Fatalf("expected 502 AppError when response has only think block, got %v", err)
+		}
+	})
 }
 
 func TestBuildVedicPredictionPrompt(t *testing.T) {
@@ -523,5 +549,57 @@ func TestDiagnoseNetworkErrorAndMaskKey(t *testing.T) {
 	}
 	if masked := maskAPIKey("SKQ80Y1-E6AMVCW-JSFSM5M-CY856Q4"); masked != "SKQ8...56Q4" {
 		t.Errorf("expected SKQ8...56Q4, got %s", masked)
+	}
+}
+
+func TestStripThinkTags(t *testing.T) {
+	tests := []struct {
+		name string
+		in   string
+		want string
+	}{
+		{
+			name: "plain prediction without tags",
+			in:   "ลัคนาสถิตราศีกุมภ์",
+			want: "ลัคนาสถิตราศีกุมภ์",
+		},
+		{
+			name: "standard multiline think block before prediction",
+			in:   "<think>\nขั้นตอนการคิด\nวิเคราะห์ดวง\n</think>\n\n**1. แกนหลักของชีวิต**",
+			want: "**1. แกนหลักของชีวิต**",
+		},
+		{
+			name: "multiple blocks and case-insensitive tags",
+			in:   "<THINK data-model=\"deepseek\">รอบ 1</THINK >ส่วนที่ 1\n<think>รอบ 2</think>\nส่วนที่ 2",
+			want: "ส่วนที่ 1\n\nส่วนที่ 2",
+		},
+		{
+			name: "orphan closing tag from prefilled prompt",
+			in:   "คิดวิเคราะห์ก่อนปิด\n</think>\n\nคำพยากรณ์จริง",
+			want: "คำพยากรณ์จริง",
+		},
+		{
+			name: "self-closing think tag",
+			in:   "<think/>คำพยากรณ์จริง",
+			want: "คำพยากรณ์จริง",
+		},
+		{
+			name: "unclosed trailing think tag",
+			in:   "คำพยากรณ์จริง\n<think>ข้อความค้างที่ถูกตัด",
+			want: "คำพยากรณ์จริง",
+		},
+		{
+			name: "only unclosed think block becomes empty",
+			in:   "<think>กำลังคิดยังไม่เสร็จ...",
+			want: "",
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			if got := StripThinkTags(tc.in); got != tc.want {
+				t.Errorf("StripThinkTags(%q) = %q, want %q", tc.in, got, tc.want)
+			}
+		})
 	}
 }

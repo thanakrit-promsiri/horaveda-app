@@ -634,6 +634,49 @@ func TestHandleHoraPredict(t *testing.T) {
 		}
 	})
 
+	t.Run("strips think tag from AnythingLLM prediction in API response", func(t *testing.T) {
+		client := &http.Client{
+			Transport: roundTripFunc(func(req *http.Request) (*http.Response, error) {
+				rr := httptest.NewRecorder()
+				rr.Header().Set("Content-Type", "application/json")
+				switch {
+				case req.URL.Path == "/api/v1/hora/prompt":
+					_, _ = rr.Write([]byte(`{"status":"success","prompt":"[Vedic Sidereal(Lahiri)/WholeSign]"}`))
+				case req.Method == http.MethodGet && req.URL.Path == "/api/v1/workspace/testuser01":
+					_, _ = rr.Write([]byte(`{"workspace":[{"id":1,"slug":"testuser01","threads":[{"slug":"testuser01-hora"}]}]}`))
+				case strings.HasSuffix(req.URL.Path, "/chat"):
+					_, _ = rr.Write([]byte(`{"id":"1","type":"textResponse","textResponse":"\u003cthink\u003eขั้นตอนการคิด\u003c/think\u003e\n\nคำทำนายที่สะอาด","close":true,"error":null}`))
+				default:
+					rr.WriteHeader(http.StatusNotFound)
+				}
+				return rr.Result(), nil
+			}),
+		}
+		h := setupHandler(&stubAuthRepo{})
+		h.HoraService = service.NewHoraService("http://localhost:8083/api/v1/hora/prompt", h.Logger, client)
+		h.AnythingLLMService = service.NewAnythingLLMService("http://localhost:3001/api/v1", "llm-key", 0, h.Logger, client)
+
+		body := `{"username": "testuser01", "year": 1988, "month": 12, "day": 23, "hour_thai": 10.35, "latitude": 13.7563, "longitude": 100.5018}`
+		req := httptest.NewRequest(http.MethodPost, "/api/v1/hora/predict", bytes.NewBufferString(body))
+		ctx := context.WithValue(req.Context(), "userClaims", map[string]interface{}{"username": "testuser01"})
+		rr := httptest.NewRecorder()
+
+		h.HandleHoraPredict(rr, req.WithContext(ctx))
+
+		if rr.Code != http.StatusOK {
+			t.Fatalf("expected 200, got %d: %s", rr.Code, rr.Body.String())
+		}
+		var res struct {
+			Data domain.HoraPredictResponse `json:"data"`
+		}
+		if err := json.Unmarshal(rr.Body.Bytes(), &res); err != nil {
+			t.Fatalf("invalid JSON response: %v", err)
+		}
+		if res.Data.Prediction != "คำทำนายที่สะอาด" || strings.Contains(rr.Body.String(), "think") {
+			t.Errorf("expected prediction without think tag, got %q (raw=%s)", res.Data.Prediction, rr.Body.String())
+		}
+	})
+
 	t.Run("username mismatch with token returns 403", func(t *testing.T) {
 		h := setupHandler(&stubAuthRepo{})
 		body := `{"username": "someoneelse", "year": 1988, "month": 12, "day": 23, "hour_thai": 10.35, "latitude": 13.7563, "longitude": 100.5018}`
@@ -851,6 +894,55 @@ func TestHandleHoraTransitPredict(t *testing.T) {
 		}
 		if chatCalls != 1 {
 			t.Errorf("expected 1 chat call, got %d", chatCalls)
+		}
+	})
+
+	t.Run("strips think tag from transit prediction API response", func(t *testing.T) {
+		client := &http.Client{
+			Transport: roundTripFunc(func(req *http.Request) (*http.Response, error) {
+				rr := httptest.NewRecorder()
+				rr.Header().Set("Content-Type", "application/json")
+				switch {
+				case req.URL.Path == "/api/v1/hora/prompt":
+					_, _ = rr.Write([]byte(`{"status":"success","prompt":"[Natal Prompt]"}`))
+				case req.URL.Path == "/api/v1/hora/transitdasha_prompt":
+					_, _ = rr.Write([]byte(`{"status":"success","prompt":"[Transit Prompt]"}`))
+				case req.Method == http.MethodGet && req.URL.Path == "/api/v1/workspace/testuser01":
+					_, _ = rr.Write([]byte(`{"workspace":[{"id":1,"slug":"testuser01","threads":[{"slug":"testuser01-hora"}]}]}`))
+				case strings.HasSuffix(req.URL.Path, "/chat"):
+					_, _ = rr.Write([]byte(`{"id":"1","type":"textResponse","textResponse":"\u003cthink\u003eวิเคราะห์ดาวจร\u003c/think\u003e\nคำทำนายดาวจรที่สะอาด","close":true,"error":null}`))
+				default:
+					rr.WriteHeader(http.StatusNotFound)
+				}
+				return rr.Result(), nil
+			}),
+		}
+		h := setupHandler(&stubAuthRepo{})
+		h.HoraService = service.NewHoraServiceWithTransit(
+			"http://localhost:8083/api/v1/hora/prompt",
+			"http://localhost:8083/api/v1/hora/transitdasha_prompt",
+			h.Logger,
+			client,
+		)
+		h.AnythingLLMService = service.NewAnythingLLMService("http://localhost:3001/api/v1", "llm-key", 0, h.Logger, client)
+
+		req := httptest.NewRequest(http.MethodPost, "/api/v1/hora/transitpredict", bytes.NewBufferString(validBody))
+		ctx := context.WithValue(req.Context(), "userClaims", map[string]interface{}{"username": "testuser01"})
+		rr := httptest.NewRecorder()
+
+		h.HandleHoraTransitPredict(rr, req.WithContext(ctx))
+
+		if rr.Code != http.StatusOK {
+			t.Fatalf("expected 200, got %d: %s", rr.Code, rr.Body.String())
+		}
+		var res struct {
+			Data domain.HoraTransitPredictResponse `json:"data"`
+		}
+		if err := json.Unmarshal(rr.Body.Bytes(), &res); err != nil {
+			t.Fatalf("invalid JSON: %v", err)
+		}
+		if res.Data.Prediction != "คำทำนายดาวจรที่สะอาด" || strings.Contains(rr.Body.String(), "think") {
+			t.Errorf("expected transit prediction without think tag, got %q (raw=%s)", res.Data.Prediction, rr.Body.String())
 		}
 	})
 
