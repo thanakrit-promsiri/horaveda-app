@@ -96,15 +96,15 @@ func FormatThaiMonthYearShort(year, month int) string {
 	return fmt.Sprintf("เดือน%s %d", ThaiMonthName(month), ToBuddhistYear(year))
 }
 
-// BuildVedicTransitPredictionPrompt รวมข้อมูลดาวชะตากำเนิดและดาวจร เพื่อพยากรณ์รายเดือน
+// BuildVedicTransitPredictionPrompt รวมข้อมูลชะตากำเนิดและดาวจร เพื่อพยากรณ์รายเดือน
 func BuildVedicTransitPredictionPrompt(natalPrompt, transitPrompt string, transitYear, transitMonth int) string {
 	monthYearFull := FormatThaiMonthYear(transitYear, transitMonth)
 	monthYearShort := FormatThaiMonthYearShort(transitYear, transitMonth)
 
 	var b strings.Builder
-	b.WriteString("จงพยากรณ์ดวงชะตาดาวจรประจำ")
+	b.WriteString("จงพยากรณ์ดวงดาวจรประจำ")
 	b.WriteString(monthYearFull)
-	b.WriteString(" ตามหลักโหราศาสตร์พระเวท โดยวิเคราะห์ปฏิสัมพันธ์ระหว่างข้อมูลดาวชะตากำเนิด (Natal) และดาวจร (Transit & Dasha) ต่อไปนี้\n\n")
+	b.WriteString(" ตามหลักโหราศาสตร์พระเวท โดยวิเคราะห์ข้อมูลดาวชะตากำเนิด (Natal) และดาวจร (Transit & Dasha) ดังนี้\n\n")
 
 	b.WriteString("### 1. ข้อมูลดาวชะตากำเนิด (Natal Chart - Sidereal Lahiri / Whole Sign)\n```\n")
 	b.WriteString(strings.TrimSpace(natalPrompt))
@@ -114,32 +114,33 @@ func BuildVedicTransitPredictionPrompt(natalPrompt, transitPrompt string, transi
 	b.WriteString(strings.TrimSpace(transitPrompt))
 	b.WriteString("\n```\n\n")
 
-	b.WriteString("### หลักเกณฑ์การวิเคราะห์เชิงระบบ (ให้ประมวลผลตามตรรกะนี้)\n")
-	b.WriteString("1. **ทศาคุมดาวจร:** ใช้วิมโศตรีทศาปัจจุบัน (MD / AD) กำหนดศักยภาพหลัก และใช้ดาวจรเป็นตัวกระตุ้นจังหวะเวลา (Timing)\n")
-	b.WriteString("2. **วิเคราะห์ 2 แกน (Dual Reference Frame):** ประเมินร่วมกันระหว่าง ลัคนา (เหตุการณ์ภายนอก) และ จันทร์กำเนิด (สภาวะจิตใจ)\n")
-	b.WriteString("3. **ปฏิสัมพันธ์ดาวจร:** พิจารณาภพที่ดาวโคจรเข้าสถิต การกุมองศาชิดดาวกำเนิด และเกณฑ์สายตาจร (Transit Drishti) โดยตระหนักถึงหน้าที่ดาว (Functional Nature) ประจำลัคนาดวงนี้เสมอ\n\n")
+	b.WriteString("### หลักเกณฑ์วิเคราะห์\n")
+	b.WriteString("1. **ทศาคุมดาวจร:** ใช้ทศา (MD/AD) กำหนดศักยภาพหลัก และใช้ดาวจรเป็นตัวกระตุ้นจังหวะเวลา (Timing)\n")
+	b.WriteString("2. **วิเคราะห์ 2 แกน:** เทียบ ลัคนา (เหตุการณ์ภายนอก) และ จันทร์กำเนิด (สภาวะจิตใจ)\n")
+	b.WriteString("3. **ปฏิสัมพันธ์ดาวจร:** พิจารณาภพสถิต, องศากุม, เกณฑ์สายตาจร (Transit Drishti) และหน้าที่ดาวประจำลัคนา\n")
+	b.WriteString("   - เน้นวิเคราะห์ **ดาวจรเร็ว** (อาทิตย์, จันทร์, อังคาร, พุธ, ศุกร์) เป็นหลัก\n")
+	b.WriteString("   - ส่วน **ดาวจรช้า** (พฤหัสบดี, เสาร์, ราหู, เกตุ) ให้อ่านอิทธิพลภาพรวม\n\n")
 
-	// เพิ่มคำสั่ง CoT (Chain of Thought)
-	b.WriteString("### ขั้นตอนการสร้างคำตอบ (Instruction)\n")
-	b.WriteString("คุณสามารถวิเคราะห์ความสัมพันธ์เชิงลึก (เช่น การนับภพขัดแย้ง 6/8, การส่งเกณฑ์สายตา, อิทธิพลทศา) ในกระบวนการคิดของคุณ จากนั้น **ให้สังเคราะห์ผลลัพธ์เพื่อนำเสนอเฉพาะคำทำนายตามโครงสร้างและสัญลักษณ์ด้านล่างนี้อย่างเคร่งครัด โดยไม่ต้องแสดงวิธีคิดออกมา**\n\n")
+	b.WriteString("### ข้อกำหนดการตอบ (Instruction)\n")
+	b.WriteString("ให้คิดวิเคราะห์เชิงลึก (เช่น ทศา, นับภพขัดแย้ง 6/8, เกณฑ์สายตา) ภายในกระบวนการคิดของคุณ จากนั้น **สรุปเฉพาะคำทำนายตามรูปแบบด้านล่างนี้อย่างเคร่งครัด ห้ามแสดงวิธีคิดออกมา**\n\n")
 
 	b.WriteString("### รูปแบบคำตอบที่ต้องส่งกลับ (Output Format):\n\n")
 	b.WriteString("คำพยากรณ์ดวงชะตาประจำ")
 	b.WriteString(monthYearFull)
 	b.WriteString("\n\n")
-	b.WriteString("อิทธิพลของดาวจรสำคัญใน")
+	b.WriteString("อิทธิพลดาวจรสำคัญใน")
 	b.WriteString(monthYearFull)
-	b.WriteString(" ส่งกระแสสัมพันธ์กับลัคนาตามเวลาเกิดของเจ้าชะตา มีเกณฑ์การเปลี่ยนแปลงไปในทิศทางที่โดดเด่นดังนี้ ภาพรวม อื่นๆ :\n")
-	b.WriteString("[ระบุคำทำนายภาพรวมของเดือน บรรยากาศหลักในชีวิต โดยเชื่อมโยงระหว่างผลของทศาปัจจุบันกับแรงกระตุ้นจากดาวจรหลัก]\n\n")
-	b.WriteString("•\nการงานและการศึกษา: [คำทำนายด้านหน้าที่การงาน ความรับผิดชอบ ทิศทางความก้าวหน้า หรือการติดต่อเจรจา]\n")
-	b.WriteString("•\nการเงินและโชคลาภ: [คำทำนายด้านกระแสเงินสด สภาพคล่อง รายรับ รายจ่าย การลงทุน]\n")
-	b.WriteString("•\nความรักและสุขภาพ: [คำทำนายด้านความสัมพันธ์กับคนรัก ครอบครัว และสภาพร่างกาย/จิตใจที่ควรใส่ใจ]\n")
-	b.WriteString("🪐 ดาวจรสำคัญ: [ระบุดาวเคราะห์จรที่มีบทบาทหลักในการส่งกระแสสัมพันธ์ เช่น พฤหัสบดี เสาร์ ราหู เกตุ พร้อมสรุปจุดส่งผลกระทบสั้นๆ ใน")
+	b.WriteString(" ส่งผลต่อลัคนา มีทิศทางที่โดดเด่นดังนี้:\n")
+	b.WriteString("[ระบุภาพรวมของเดือน เชื่อมโยงผลทศาปัจจุบันกับแรงกระตุ้นจากดาวจรหลัก]\n\n")
+	b.WriteString("•\nการงานและการศึกษา: [ความรับผิดชอบ ทิศทางความก้าวหน้า การติดต่อเจรจา]\n")
+	b.WriteString("•\nการเงินและโชคลาภ: [กระแสเงินสด สภาพคล่อง รายรับ รายจ่าย การลงทุน]\n")
+	b.WriteString("•\nความรักและสุขภาพ: [ความสัมพันธ์คนรัก/ครอบครัว และสุขภาพกาย/ใจที่ควรใส่ใจ]\n")
+	b.WriteString("🪐 ดาวจรสำคัญ: [ระบุดาวที่มีบทบาทหลัก (เน้นดาวจรเร็ว ส่วนดาวจรช้ากล่าวรวมๆ) พร้อมสรุปผลกระทบสั้นๆ ใน")
 	b.WriteString(monthYearShort)
 	b.WriteString("]\n")
 	b.WriteString("✨ ")
 	b.WriteString(monthYearShort)
-	b.WriteString(": [คำแนะนำในการดำเนินชีวิตเชิงสติและปัญญา การปรับพฤติกรรม (Sattvic Upaya) เพื่อปรับสมดุลตามดาวที่ให้โทษ โดยใช้เหตุผลเชิงสร้างสรรค์ ไม่กล่าวอ้างความเชื่อเชิงพิธีกรรม]\n")
+	b.WriteString(": [คำแนะนำปรับพฤติกรรม (Sattvic Upaya) เพื่อรับมือดาวให้โทษ ใช้เหตุผลเชิงสร้างสรรค์ ไม่อ้างพิธีกรรม]\n")
 
 	return b.String()
 }
